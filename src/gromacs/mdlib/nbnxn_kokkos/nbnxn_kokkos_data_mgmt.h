@@ -1,9 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
- * Copyright (c) 2001-2012, The GROMACS development team.
- * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
+ * Copyright (c) 2014,2015, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -34,35 +32,31 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-
-/*! \internal \file
- *  \brief
- *  Data types used internally in the nbnxn_kokkos module.
+/*! \libinternal \file
+ *  \brief Declare interface for device data management by Kokkos views for NBNXN module
  *
  *  \author Sikandar Y. Mashayak <symashayak@gmail.com>
  *  \ingroup module_mdlib
+ *  \inlibraryapi
  */
 
-#ifndef NBNXN_KOKKOS_TYPES_H
-#define NBNXN_KOKKOS_TYPES_H
+#ifndef NBNXN_KOKKOS_DATA_MGMT_H
+#define NBNXN_KOKKOS_DATA_MGMT_H
 
-#include "config.h"
-
-#include <impl/Kokkos_Timer.hpp>
-#include <Kokkos_Core.hpp>
-#include <Kokkos_DualView.hpp>
-#include <Kokkos_Vectorization.hpp>
-
-// set GMXHostype and GMXDeviceType from Kokkos Default Types
-typedef Kokkos::DefaultExecutionSpace GMXDeviceType;
-typedef Kokkos::HostSpace::execution_space GMXHostType;
+#include "nbnxn_kokkos_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/** Initializes Kokkos and the data structures related to Kokkos kernel nonbonded calculations. */
+  void nbnxn_kokkos_init()
+
+/** Finalizes Kokkos */
+  void nbnxn_kokkos_finalize()
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /* NBNXN_KOKKOS_TYPES_H */
+#endif

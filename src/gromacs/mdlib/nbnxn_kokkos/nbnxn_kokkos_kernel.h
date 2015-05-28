@@ -47,54 +47,12 @@
 
 #include "gromacs/math/utilities.h"
 #include "gromacs/pbcutil/ishift.h"
-/* Note that floating-point constants in CUDA code should be suffixed
- * with f (e.g. 0.5f), to stop the compiler producing intermediate
- * code that is in double precision.
- */
-
-#if __CUDA_ARCH__ >= 300
-#define REDUCE_SHUFFLE
-/* On Kepler pre-loading i-atom types to shmem gives a few %,
-   but on Fermi it does not */
-#define IATYPE_SHMEM
-#endif
-
-#if defined EL_EWALD_ANA || defined EL_EWALD_TAB
-/* Note: convenience macro, needs to be undef-ed at the end of the file. */
-#define EL_EWALD_ANY
-#endif
-
-#if defined EL_EWALD_ANY || defined EL_RF || defined LJ_EWALD || (defined EL_CUTOFF && defined CALC_ENERGIES)
-/* Macro to control the calculation of exclusion forces in the kernel
- * We do that with Ewald (elec/vdw) and RF. Cut-off only has exclusion
- * energy terms.
- *
- * Note: convenience macro, needs to be undef-ed at the end of the file.
- */
-#define EXCLUSION_FORCES
-#endif
 
 #if defined LJ_EWALD_COMB_GEOM || defined LJ_EWALD_COMB_LB
 /* Note: convenience macro, needs to be undef-ed at the end of the file. */
 #define LJ_EWALD
 #endif
 
-/*
-   Kernel launch parameters:
-    - #blocks   = #pair lists, blockId = pair list Id
-    - #threads  = NTHREAD_Z * CL_SIZE^2
-    - shmem     = see nbnxn_cuda.cu:calc_shmem_required()
-
-    Each thread calculates an i force-component taking one pair of i-j atoms.
- */
-
-#if __CUDA_ARCH__ >= 350
-__launch_bounds__(THREADS_PER_BLOCK, MIN_BLOCKS_PER_MP)
-#else
-__launch_bounds__(THREADS_PER_BLOCK)
-#endif
-#ifdef PRUNE_NBL
-#ifdef CALC_ENERGIES
 __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _VF_prune_cuda)
 #else
 __global__ void NB_KERNEL_FUNC_NAME(nbnxn_kernel, _F_prune_cuda)
