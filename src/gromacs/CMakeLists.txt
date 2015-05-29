@@ -60,6 +60,13 @@ function (gmx_write_installed_header_list)
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/installed-headers.txt "${_list}")
 endfunction()
 
+option(KOKKOS "Build kokkos kernels" ON)
+if(KOKKOS)
+    find_package(KOKKOS REQUIRED)
+    include_directories(${KOKKOS_INCLUDE_DIRS})
+    list(APPEND GMX_EXTRA_LIBRARIES ${KOKKOS_LIBRARIES})
+endif()
+
 if(GMX_USE_TNG)
     option(GMX_EXTERNAL_TNG "Use external TNG instead of compiling the version shipped with GROMACS."
            OFF)
