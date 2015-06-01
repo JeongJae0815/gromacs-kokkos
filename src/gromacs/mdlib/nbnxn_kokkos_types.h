@@ -1,9 +1,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,  by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
+ * Copyright (c) 2015, by the GROMACS development team, led by Mark
+ * Abraham, David van der Spoel, Berk Hess, and Erik Lindahl, and
+ * including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
  *
  * GROMACS is free software; you can redistribute it and/or
@@ -33,35 +33,28 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-/* Note that floating-point constants in CUDA code should be suffixed
- * with f (e.g. 0.5f), to stop the compiler producing intermediate
- * code that is in double precision.
- */
+#ifndef GMX_MDLIB_NBNXN_KOKKOS_TYPES_H
+#define GMX_MDLIB_NBNXN_KOKKOS_TYPES_H
+
 #include "config.h"
 
-#ifndef NBNXN_KOKKOS_KERNEL_UTILS_CUH
-#define NBNXN_KOKKOS_KERNEL_UTILS_CUH
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define ONE_SIXTH_F     0.16666667f
-#define ONE_TWELVETH_F  0.08333333f
+#ifdef GMX_KOKKOS
 
+struct nbnxn_kokkos_t;
+typedef struct nbnxn_kokkos_t gmx_nbnxn_kokkos_t;
 
-/*! Apply force switch,  force + energy version. */
-static inline 
-void calculate_force_switch_F(float               c6,
-                              float               c12,
-                              float               inv_r,
-                              float               r2,
-                              float              *F_invr)
-{
-    float r, r_switch;
+#else
 
-    r         = r2 * inv_r;
-    r_switch  = r - nbparam.rvdw_switch;
-    r_switch  = r_switch >= 0.0f ? r_switch : 0.0f;
+typedef int gmx_nbnxn_kokkos_t;
 
-    *F_invr  +=  -c6 +  c12*;
+#endif
 
+#ifdef __cplusplus
 }
+#endif
 
-#endif /* NBNXN_KOKKOS_KERNEL_UTILS_CUH */
+#endif

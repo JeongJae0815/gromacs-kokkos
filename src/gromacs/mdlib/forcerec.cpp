@@ -73,6 +73,7 @@
 #include "gromacs/mdlib/nbnxn_atomdata.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
+#include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
 #include "gromacs/mdlib/nbnxn_search.h"
 #include "gromacs/mdlib/nbnxn_simd.h"
 #include "gromacs/pbcutil/ishift.h"
@@ -1696,6 +1697,7 @@ static void pick_nbnxn_kernel(FILE                *fp,
                               gmx_bool             use_simd_kernels,
                               gmx_bool             bUseGPU,
                               gmx_bool             bEmulateGPU,
+			      gmx_bool             bUseKokkos,
                               const t_inputrec    *ir,
                               int                 *kernel_type,
                               int                 *ewald_excl,
@@ -1718,6 +1720,10 @@ static void pick_nbnxn_kernel(FILE                *fp,
     else if (bUseGPU)
     {
         *kernel_type = nbnxnk8x8x8_GPU;
+    }
+    else if (bUseKokkos)
+    {
+        *kernel_type = nbnxn_Kokkos;
     }
 
     if (*kernel_type == nbnxnkNotSet)
@@ -2147,7 +2153,7 @@ static void init_nb_verlet(FILE                *fp,
         if (i == 0) /* local */
         {
             pick_nbnxn_kernel(fp, cr, fr->use_simd_kernels,
-                              nbv->bUseGPU, bEmulateGPU, ir,
+                              nbv->bUseGPU, bEmulateGPU,nbv->bUseGPU, ir,
                               &nbv->grp[i].kernel_type,
                               &nbv->grp[i].ewald_excl,
                               fr->bNonbonded);
@@ -2156,9 +2162,9 @@ static void init_nb_verlet(FILE                *fp,
         {
             if (nbpu_opt != NULL && strcmp(nbpu_opt, "gpu_cpu") == 0)
             {
-                /* Use GPU for local, select a CPU kernel for non-local */
+                /* Use GPU or Kokkos for local, select a CPU kernel for non-local */
                 pick_nbnxn_kernel(fp, cr, fr->use_simd_kernels,
-                                  FALSE, FALSE, ir,
+                                  FALSE, FALSE, FALSE, ir,
                                   &nbv->grp[i].kernel_type,
                                   &nbv->grp[i].ewald_excl,
                                   fr->bNonbonded);
@@ -2204,6 +2210,37 @@ static void init_nb_verlet(FILE                *fp,
         else
         {
             nbv->min_ci_balanced = nbnxn_gpu_min_ci_balanced(nbv->gpu_nbv);
+            if (debug)
+            {
+                fprintf(debug, "Neighbor-list balancing parameter: %d (auto-adjusted to the number of GPU multi-processors)\n",
+                        nbv->min_ci_balanced);
+            }
+        }
+    }
+    else if (nbv->bUseKokkos)
+    {
+        /* init the Kokkos views */
+        nbnxn_kokkos_init();
+
+        if ((env = getenv("GMX_NB_MIN_CI")) != NULL)
+        {
+            char *end;
+
+            nbv->min_ci_balanced = strtol(env, &end, 10);
+            if (!end || (*end != 0) || nbv->min_ci_balanced <= 0)
+            {
+                gmx_fatal(FARGS, "Invalid value passed in GMX_NB_MIN_CI=%s, positive integer required", env);
+            }
+
+            if (debug)
+            {
+                fprintf(debug, "Neighbor-list balancing parameter: %d (passed as env. var.)\n",
+                        nbv->min_ci_balanced);
+            }
+        }
+        else
+        {
+	  nbv->min_ci_balanced = 0;
             if (debug)
             {
                 fprintf(debug, "Neighbor-list balancing parameter: %d (auto-adjusted to the number of GPU multi-processors)\n",
@@ -2287,6 +2324,11 @@ static void init_nb_verlet(FILE                *fp,
 gmx_bool usingGpu(nonbonded_verlet_t *nbv)
 {
     return nbv != NULL && nbv->bUseGPU;
+}
+
+gmx_bool usingKokkos(nonbonded_verlet_t *nbv)
+{
+    return nbv != NULL && nbv->bUseKokkos;
 }
 
 void init_forcerec(FILE              *fp,

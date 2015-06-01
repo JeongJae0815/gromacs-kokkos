@@ -61,6 +61,14 @@ typedef Kokkos::HostSpace::execution_space GMXHostType;
 extern "C" {
 #endif
 
+/** \internal
+ * \brief Main data structure for CUDA nonbonded force calculations.
+ */
+struct gmx_nbnxn_cuda_t
+{
+    bool                 bDoTime;   /**< True if event-based timing is enabled.               */
+};
+
 #ifdef __cplusplus
 }
 #endif

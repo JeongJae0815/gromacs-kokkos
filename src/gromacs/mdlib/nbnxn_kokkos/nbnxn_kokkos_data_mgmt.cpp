@@ -39,8 +39,6 @@
  */
 #include "gmxpre.h"
 
-#include "nbnxn_kokkos_data_mgmt.h"
-
 #include "config.h"
 
 #include <assert.h>
@@ -48,40 +46,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "gromacs/legacyheaders/typedefs.h"
-#include "gromacs/legacyheaders/types/enums.h"
-
-#include "gromacs/pbcutil/ishift.h"
-#include "gromacs/utility/basedefinitions.h"
-#include "gromacs/utility/cstringutil.h"
-#include "gromacs/utility/fatalerror.h"
-#include "gromacs/utility/smalloc.h"
+#include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
 
 void nbnxn_kokkos_init()
 {
-
-  int device = 0;
-  int num_threads = 1;
-  int numa = 1;
-
-#ifdef KOKKOS_HAVE_CUDA
-  Kokkos::HostSpace::execution_space::initialize(num_threads,numa);
-  Kokkos::Cuda::SelectDevice select_device(device);
-  Kokkos::Cuda::initialize(select_device);
-#else
-  GMXHostType::initialize(num_threads,numa);
-#endif
 
 }
 
 void nbnxn_kokkos_finalize()
 {
-
-#ifdef KOKKOS_HAVE_CUDA
-  Kokkos::Cuda::finalize();
-  Kokkos::HostSpace::execution_space::finalize();
-#else
-  GMXHostType::finalize();
-#endif
 
 }

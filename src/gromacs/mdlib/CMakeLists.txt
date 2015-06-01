@@ -38,6 +38,10 @@ if(GMX_GPU)
     add_subdirectory(nbnxn_cuda)
 endif()
 
+if(GMX_KOKKOS)
+    add_subdirectory(nbnxn_kokkos)
+endif()
+
 set(MDLIB_SOURCES ${MDLIB_SOURCES} PARENT_SCOPE)
 if (BUILD_TESTING)
     add_subdirectory(tests)

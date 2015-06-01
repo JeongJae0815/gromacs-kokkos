@@ -57,6 +57,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef GMX_KOKKOS
+#include <impl/Kokkos_Timer.hpp>
+#include <Kokkos_Core.hpp>
+#endif
+
 #include "gromacs/commandline/pargs.h"
 #include "gromacs/fileio/filenm.h"
 #include "gromacs/legacyheaders/checkpoint.h"
@@ -429,6 +434,11 @@ int gmx_mdrun(int argc, char *argv[])
 
     cr = init_commrec();
 
+#ifdef GMX_KOKKOS
+    Kokkos::initialize(argc, argv);
+    printf("\n \n Initializing Kokkos \n \n");
+#endif
+
     unsigned long PCA_Flags = PCA_CAN_SET_DEFFNM;
     // With -multi or -multidir, the file names are going to get processed
     // further (or the working directory changed), so we can't check for their
@@ -610,6 +620,11 @@ int gmx_mdrun(int argc, char *argv[])
     {
         gmx_log_close(fplog);
     }
+
+#ifdef GMX_KOKKOS
+    Kokkos::finalize();
+    printf("\n \n Finalizing Kokkos \n \n");
+#endif
 
     return rc;
 }

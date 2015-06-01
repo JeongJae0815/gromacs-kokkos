@@ -37,6 +37,7 @@
 #define NB_VERLET_H
 
 #include "gromacs/mdlib/nbnxn_gpu_types.h"
+#include "gromacs/mdlib/nbnxn_kokkos_types.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
 
 #ifdef __cplusplus
@@ -44,7 +45,7 @@ extern "C" {
 #endif
 
 
-/** Nonbonded NxN kernel types: plain C, CPU SIMD, GPU, GPU emulation */
+/** Nonbonded NxN kernel types: plain C, CPU SIMD, GPU, GPU emulation, Kokkos */
 typedef enum
 {
     nbnxnkNotSet = 0,
@@ -52,6 +53,7 @@ typedef enum
     nbnxnk4xN_SIMD_4xN,
     nbnxnk4xN_SIMD_2xNN,
     nbnxnk8x8x8_GPU,
+    nbnxn_Kokkos,
     nbnxnk8x8x8_PlainC,
     nbnxnkNR
 } nbnxn_kernel_type;
@@ -105,11 +107,18 @@ typedef struct nonbonded_verlet_t {
     gmx_nbnxn_gpu_t         *gpu_nbv;         /* pointer to GPU nb verlet data     */
     int                      min_ci_balanced; /* pair list balancing parameter
                                                  used for the 8x8x8 GPU kernels    */
+
+    gmx_bool                 bUseKokkos;      /* TRUE when Kokkos acceleration is used */
+    gmx_nbnxn_kokkos_t      *kokkos_nbv;      /* pointer to Kokkos nb verlet data     */
 } nonbonded_verlet_t;
 
 /*! \brief Getter for bUseGPU */
 gmx_bool
 usingGpu(nonbonded_verlet_t *nbv);
+
+/*! \brief Getter for bUseKokkos */
+gmx_bool
+usingKokkos(nonbonded_verlet_t *nbv);
 
 #ifdef __cplusplus
 }

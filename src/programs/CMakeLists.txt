@@ -36,6 +36,13 @@ file(GLOB MDRUN_SOURCES mdrun/*.c mdrun/*.cpp)
 # make an "object library" that we can re-use for multiple targets
 add_library(mdrun_objlib OBJECT ${MDRUN_SOURCES})
 
+option(GMX_KOKKOS "Build kokkos kernels")
+if(GMX_KOKKOS)
+    find_package(KOKKOS REQUIRED)
+    include_directories(${KOKKOS_INCLUDE_DIRS})
+    list(APPEND GMX_EXTRA_LIBRARIES ${KOKKOS_LIBRARIES})
+endif()
+
 if(GMX_FAHCORE)
     # The lack of a real source file here alongside the object library
     # may break some generators, according to CMake documentation. If

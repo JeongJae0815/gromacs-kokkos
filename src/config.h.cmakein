@@ -241,6 +241,9 @@
 /* Use GPU native acceleration */
 #cmakedefine GMX_GPU
 
+/* Use KOKKOS acceleration */
+#cmakedefine GMX_KOKKOS
+
 /* CUDA runtime API version (identical to CUDART_VERSION from cuda_runtime_api.h) */
 #cmakedefine GMX_CUDA_VERSION @GMX_CUDA_VERSION@
 

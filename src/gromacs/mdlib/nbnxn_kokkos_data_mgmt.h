@@ -1,9 +1,9 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2014,2015, by the GROMACS development team, led by
- * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
- * and including many others, as listed in the AUTHORS file in the
+ * Copyright (c) 2015, by the GROMACS development team, led by Mark
+ * Abraham, David van der Spoel, Berk Hess, and Erik Lindahl, and
+ * including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
  *
  * GROMACS is free software; you can redistribute it and/or
@@ -33,7 +33,7 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 /*! \libinternal \file
- *  \brief Declare interface for device data management by Kokkos views for NBNXN module
+ *  \brief Declare interface for Kokkos data transfer for NBNXN module
  *
  *  \author Sikandar Y. Mashayak <symashayak@gmail.com>
  *  \ingroup module_mdlib
@@ -43,17 +43,17 @@
 #ifndef NBNXN_KOKKOS_DATA_MGMT_H
 #define NBNXN_KOKKOS_DATA_MGMT_H
 
-#include "nbnxn_kokkos_types.h"
+#include "gromacs/mdlib/nbnxn_kokkos_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Initializes Kokkos and the data structures related to Kokkos kernel nonbonded calculations. */
-  void nbnxn_kokkos_init()
+/** Initializes the data structures related to Kokkos nonbonded calculations. */
+  void nbnxn_kokkos_init();
 
-/** Finalizes Kokkos */
-  void nbnxn_kokkos_finalize()
+/** Deallocates the Kokkos views. */
+  void nbnxn_kokkos_finalize();
 
 #ifdef __cplusplus
 }

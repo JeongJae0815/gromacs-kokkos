@@ -32,19 +32,7 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-#
-#  KOKKOS_INCLUDE_DIRS - where to find kokkos.h, etc
-#  KOKKOS_LIBRARIES    - List of libraries when using kokkos.
-#  KOKKOS_FOUND        - True if kokkos found.
-#
-
-find_path(KOKKOS_INCLUDE_DIR Kokkos_Core.hpp)
-find_library(KOKKOS_CORE_LIBRARY NAMES kokkoscore)
-
-set(KOKKOS_LIBRARIES "${KOKKOS_CORE_LIBRARY}")
-set(KOKKOS_INCLUDE_DIRS "${KOKKOS_INCLUDE_DIR}")
-
-include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(KOKKOS DEFAULT_MSG KOKKOS_CORE_LIBRARY KOKKOS_INCLUDE_DIR)
-
-mark_as_advanced(KOKKOS_INCLUDE_DIR KOKKOS_CORE_LIBRARY)
+if(GMX_KOKKOS)
+    file(GLOB KOKKOS_NB_SOURCES *.cpp)
+    set(MDLIB_SOURCES ${MDLIB_SOURCES} ${KOKKOS_NB_SOURCES} PARENT_SCOPE)
+endif()
