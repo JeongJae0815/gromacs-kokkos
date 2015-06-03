@@ -47,12 +47,28 @@
 #include <stdlib.h>
 
 #include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
+#include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 
 #include "nbnxn_kokkos_types.h"
 
-void nbnxn_kokkos_init()
+void nbnxn_kokkos_init(FILE                 *fplog,
+		       gmx_nbnxn_kokkos_t   **p_nb)
 {
+
+    gmx_nbnxn_kokkos_t *nb;
+
+    snew(nb, 1);
+    snew(nb->atdat, 1);
+
+    *p_nb = nb;
+
+    printf("\n \n Initialized Kokkos data structures.  \n \n");
+
+    if (debug)
+    {
+        fprintf(debug, "Initialized Kokkos data structures.\n");
+    }
 
 }
 

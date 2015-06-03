@@ -2234,7 +2234,7 @@ static void init_nb_verlet(FILE                *fp,
     else if (nbv->bUseKokkos)
     {
         /* init the Kokkos views */
-        nbnxn_kokkos_init();
+        nbnxn_kokkos_init(fp, &nbv->kokkos_nbv);
 
         if ((env = getenv("GMX_NB_MIN_CI")) != NULL)
         {

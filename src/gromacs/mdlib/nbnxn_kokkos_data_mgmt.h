@@ -55,7 +55,8 @@ struct nbnxn_atomdata_t;
 
 /** Initializes the data structures related to Kokkos nonbonded calculations. */
 KOKKOS_FUNC_QUALIFIER
-void nbnxn_kokkos_init() KOKKOS_FUNC_TERM
+void nbnxn_kokkos_init(FILE gmx_unused                        *fplog,
+		       gmx_nbnxn_kokkos_t gmx_unused          **p_nb) KOKKOS_FUNC_TERM
 
 /** Deallocates the Kokkos views. */
 KOKKOS_FUNC_QUALIFIER
