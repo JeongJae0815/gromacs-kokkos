@@ -43,6 +43,7 @@
 #ifndef NBNXN_KOKKOS_DATA_MGMT_H
 #define NBNXN_KOKKOS_DATA_MGMT_H
 
+#include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/mdlib/nbnxn_kokkos/kokkos_macros.h"
 #include "gromacs/mdlib/nbnxn_kokkos_types.h"
 
@@ -62,7 +63,7 @@ void nbnxn_kokkos_finalize() KOKKOS_FUNC_TERM
 
 /** Initializes atom-data for the Kokkos, called at every pair search step. */
 KOKKOS_FUNC_QUALIFIER
-void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t gmx_unused               *nb,
+void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t gmx_unused              *nb,
 				const struct nbnxn_atomdata_t gmx_unused *nbat) KOKKOS_FUNC_TERM
 
 #ifdef __cplusplus

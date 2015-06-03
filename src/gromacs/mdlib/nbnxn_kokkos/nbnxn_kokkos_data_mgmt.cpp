@@ -47,6 +47,7 @@
 #include <stdlib.h>
 
 #include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
+#include "gromacs/utility/smalloc.h"
 
 #include "nbnxn_kokkos_types.h"
 
@@ -60,12 +61,12 @@ void nbnxn_kokkos_finalize()
 
 }
 
-void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t              *nb,
+void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t       *nb,
 				const struct nbnxn_atomdata_t *nbat)
 {
     int            nalloc, natoms;
     bool           realloced;
-    kk_atomdata_t *d_atdat   = nb->atdat;
+    kokkos_atomdata_t *d_atdat   = nb->atdat;
 
     natoms    = nbat->natoms;
     realloced = false;
