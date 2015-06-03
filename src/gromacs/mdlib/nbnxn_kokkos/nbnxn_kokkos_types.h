@@ -53,20 +53,51 @@
 #include <Kokkos_DualView.hpp>
 #include <Kokkos_Vectorization.hpp>
 
-// set GMXHostype and GMXDeviceType from Kokkos Default Types
-typedef Kokkos::DefaultExecutionSpace GMXDeviceType;
-typedef Kokkos::HostSpace::execution_space GMXHostType;
+#include "gromacs/legacyheaders/types/interaction_const.h"
+#include "gromacs/mdlib/nbnxn_pairlist.h"
+
+#include "kokkos_type.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* All structs prefixed with "kk_" hold data used in Kokkos calculations and
+ * are passed to the kernels, except kk_timers_t. */
+/*! \cond */
+typedef struct kk_atomdata  kk_atomdata_t;
+/*! \endcond */
+
 /** \internal
- * \brief Main data structure for CUDA nonbonded force calculations.
+ * \brief Nonbonded atom data - both inputs and outputs.
+ */
+struct kk_atomdata
+{
+    int      natoms;            /**< number of atoms                              */
+    int      natoms_local;      /**< number of local atoms                        */
+    int      nalloc;            /**< allocation size for the atom data (xq, f)    */
+
+    float4  *xq;                /**< atom coordinates + charges, size natoms      */
+    float3  *f;                 /**< force output array, size natoms              */
+
+    float   *e_lj;              /**< LJ energy output, size 1                     */
+    float   *e_el;              /**< Electrostatics energy input, size 1          */
+
+    float3  *fshift;            /**< shift forces                                 */
+
+    int      ntypes;            /**< number of atom types                         */
+    int     *atom_types;        /**< atom type indices, size natoms               */
+
+    float3  *shift_vec;         /**< shifts                                       */
+    bool     bShiftVecUploaded; /**< true if the shift vector has been uploaded   */
+};
+
+/** \internal
+ * \brief Main data structure for Kokkos nonbonded force calculations.
  */
 struct gmx_nbnxn_cuda_t
 {
-    bool                 bDoTime;   /**< True if event-based timing is enabled.               */
+  kk_atomdata_t            *atdat;          /**< atom data                                            */
 };
 
 #ifdef __cplusplus

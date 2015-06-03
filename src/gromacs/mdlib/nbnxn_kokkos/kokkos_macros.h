@@ -32,41 +32,34 @@
  * To help us fund GROMACS development, we humbly ask that you cite
  * the research papers on the package. Check out http://www.gromacs.org.
  */
-/*! \libinternal \file
- *  \brief Declare interface for Kokkos data transfer for NBNXN module
- *
- *  \author Sikandar Y. Mashayak <symashayak@gmail.com>
- *  \ingroup module_mdlib
- *  \inlibraryapi
- */
+#ifndef GMX_KOKKOS_MACROS_H
+#define GMX_KOKKOS_MACROS_H
 
-#ifndef NBNXN_KOKKOS_DATA_MGMT_H
-#define NBNXN_KOKKOS_DATA_MGMT_H
+#include "config.h"
 
-#include "gromacs/mdlib/nbnxn_kokkos/kokkos_macros.h"
-#include "gromacs/mdlib/nbnxn_kokkos_types.h"
+/* These macros that let us define inlineable null implementations so
+   that non-Kokkos Gromacs can run with no overhead without conditionality
+   everywhere a Kokkos function is called. */
+#define REAL_FUNC_QUALIFIER
+#define REAL_FUNC_TERM ;
+#define REAL_FUNC_TERM_WITH_RETURN(arg) ;
 
-#ifdef __cplusplus
-extern "C" {
+#define NULL_FUNC_QUALIFIER static
+#define NULL_FUNC_TERM {}
+#define NULL_FUNC_TERM_WITH_RETURN(arg) { return (arg); }
+
+#if defined GMX_KOKKOS
+
+#define KOKKOS_FUNC_QUALIFIER REAL_FUNC_QUALIFIER
+#define KOKKOS_FUNC_TERM REAL_FUNC_TERM
+#define KOKKOS_FUNC_TERM_WITH_RETURN(arg) REAL_FUNC_TERM_WITH_RETURN(arg)
+
+#else /* No accelerator support */
+
+#define KOKKOS_FUNC_QUALIFIER NULL_FUNC_QUALIFIER
+#define KOKKOS_FUNC_TERM NULL_FUNC_TERM
+#define KOKKOS_FUNC_TERM_WITH_RETURN(arg) NULL_FUNC_TERM_WITH_RETURN(arg)
+
 #endif
 
-struct nbnxn_atomdata_t;
-
-/** Initializes the data structures related to Kokkos nonbonded calculations. */
-KOKKOS_FUNC_QUALIFIER
-void nbnxn_kokkos_init() KOKKOS_FUNC_TERM
-
-/** Deallocates the Kokkos views. */
-KOKKOS_FUNC_QUALIFIER
-void nbnxn_kokkos_finalize() KOKKOS_FUNC_TERM
-
-/** Initializes atom-data for the Kokkos, called at every pair search step. */
-KOKKOS_FUNC_QUALIFIER
-void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t gmx_unused               *nb,
-				const struct nbnxn_atomdata_t gmx_unused *nbat) KOKKOS_FUNC_TERM
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* NBNXN_KOKKOS_DATA_MGMT_H */
+#endif /* GMX_KOKKOS_MACROS_H */

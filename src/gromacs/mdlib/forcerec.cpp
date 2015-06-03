@@ -1681,6 +1681,7 @@ const char *lookup_nbnxn_kernel_name(int kernel_type)
 #endif /* GMX_NBNXN_SIMD */
             break;
         case nbnxnk8x8x8_GPU: returnvalue    = "GPU"; break;
+        case nbnxn_Kokkos: returnvalue       = "Kokkos"; break;
         case nbnxnk8x8x8_PlainC: returnvalue = "plain C"; break;
 
         case nbnxnkNR:
@@ -1724,6 +1725,7 @@ static void pick_nbnxn_kernel(FILE                *fp,
     else if (bUseKokkos)
     {
         *kernel_type = nbnxn_Kokkos;
+	md_print_info(cr, fp, "Using Kokkos nonbonded kernel");
     }
 
     if (*kernel_type == nbnxnkNotSet)
@@ -1766,12 +1768,14 @@ static void pick_nbnxn_resources(FILE                *fp,
                                  gmx_bool             bDoNonbonded,
                                  gmx_bool            *bUseGPU,
                                  gmx_bool            *bEmulateGPU,
+				 gmx_bool            *bUseKokkos,
                                  const gmx_gpu_opt_t *gpu_opt)
 {
     gmx_bool bEmulateGPUEnvVarSet;
     char     gpu_err_str[STRLEN];
 
     *bUseGPU = FALSE;
+    *bUseKokkos = FALSE;
 
     bEmulateGPUEnvVarSet = (getenv("GMX_EMULATE_GPU") != NULL);
 
@@ -1813,6 +1817,15 @@ static void pick_nbnxn_resources(FILE                *fp,
         /* Here we actually turn on hardware GPU acceleration */
         *bUseGPU = TRUE;
     }
+
+#ifdef GMX_KOKKOS
+    /* for now turn on Kokkos kernel based on only the GMX_KOKKOS macros.
+     * This may not be sufficient enough. More appropriate way would be to check
+     * various --kokkos- hardware settings, such as threads, devices, etc., similar to 
+     * GPU resources check above.
+     */
+    *bUseKokkos = TRUE;
+#endif
 }
 
 gmx_bool uses_simple_tables(int                 cutoff_scheme,
@@ -2139,6 +2152,7 @@ static void init_nb_verlet(FILE                *fp,
                          fr->bNonbonded,
                          &nbv->bUseGPU,
                          &bEmulateGPU,
+			 &nbv->bUseKokkos,
                          fr->gpu_opt);
 
     nbv->nbs = NULL;
@@ -2153,7 +2167,7 @@ static void init_nb_verlet(FILE                *fp,
         if (i == 0) /* local */
         {
             pick_nbnxn_kernel(fp, cr, fr->use_simd_kernels,
-                              nbv->bUseGPU, bEmulateGPU,nbv->bUseGPU, ir,
+                              nbv->bUseGPU, bEmulateGPU,nbv->bUseKokkos, ir,
                               &nbv->grp[i].kernel_type,
                               &nbv->grp[i].ewald_excl,
                               fr->bNonbonded);

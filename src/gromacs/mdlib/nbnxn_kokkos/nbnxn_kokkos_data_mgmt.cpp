@@ -48,6 +48,8 @@
 
 #include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
 
+#include "nbnxn_kokkos_types.h"
+
 void nbnxn_kokkos_init()
 {
 
@@ -55,5 +57,56 @@ void nbnxn_kokkos_init()
 
 void nbnxn_kokkos_finalize()
 {
+
+}
+
+void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t              *nb,
+				const struct nbnxn_atomdata_t *nbat)
+{
+    int            nalloc, natoms;
+    bool           realloced;
+    kk_atomdata_t *d_atdat   = nb->atdat;
+
+    natoms    = nbat->natoms;
+    realloced = false;
+
+    /* need to reallocate if we have to copy more atoms than the amount of space
+       available and only allocate if we haven't initialized yet, i.e d_atdat->natoms == -1 */
+    if (natoms > d_atdat->nalloc)
+    {
+        nalloc = over_alloc_small(natoms);
+
+        /* free up first if the arrays have already been initialized */
+        if (d_atdat->nalloc != -1)
+        {
+            // cu_free_buffered(d_atdat->f, &d_atdat->natoms, &d_atdat->nalloc);
+            // cu_free_buffered(d_atdat->xq);
+            // cu_free_buffered(d_atdat->atom_types);
+        }
+
+        // stat = cudaMalloc((void **)&d_atdat->f, nalloc*sizeof(*d_atdat->f));
+        // CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->f");
+        // stat = cudaMalloc((void **)&d_atdat->xq, nalloc*sizeof(*d_atdat->xq));
+        // CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->xq");
+
+        // stat = cudaMalloc((void **)&d_atdat->atom_types, nalloc*sizeof(*d_atdat->atom_types));
+        // CU_RET_ERR(stat, "cudaMalloc failed on d_atdat->atom_types");
+
+        d_atdat->nalloc = nalloc;
+        realloced       = true;
+    }
+
+    d_atdat->natoms       = natoms;
+    d_atdat->natoms_local = nbat->natoms_local;
+
+    /* need to clear GPU f output if realloc happened */
+    if (realloced)
+    {
+        // nbnxn_cuda_clear_f(nb, nalloc);
+    }
+
+    // copy data from host to device
+    // cu_copy_H2D_async(d_atdat->atom_types, nbat->type,
+    //                   natoms*sizeof(*d_atdat->atom_types), ls);
 
 }
