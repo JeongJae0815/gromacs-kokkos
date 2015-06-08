@@ -43,6 +43,7 @@
 #ifndef NBNXN_KOKKOS_DATA_MGMT_H
 #define NBNXN_KOKKOS_DATA_MGMT_H
 
+#include "gromacs/legacyheaders/types/interaction_const.h"
 #include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/mdlib/nbnxn_kokkos/kokkos_macros.h"
 #include "gromacs/mdlib/nbnxn_kokkos_types.h"
@@ -58,13 +59,19 @@ KOKKOS_FUNC_QUALIFIER
 void nbnxn_kokkos_init(FILE gmx_unused                        *fplog,
 		       gmx_nbnxn_kokkos_t gmx_unused          **p_nb) KOKKOS_FUNC_TERM
 
+/** Initializes simulation constant data. */
+KOKKOS_FUNC_QUALIFIER
+void nbnxn_kokkos_init_const(gmx_nbnxn_kokkos_t gmx_unused                    *nb,
+			     const interaction_const_t      gmx_unused        *ic,
+			     const struct nonbonded_verlet_group_t gmx_unused *nbv_group) KOKKOS_FUNC_TERM
+
 /** Deallocates the Kokkos views. */
 KOKKOS_FUNC_QUALIFIER
 void nbnxn_kokkos_finalize() KOKKOS_FUNC_TERM
 
 /** Initializes atom-data for the Kokkos, called at every pair search step. */
 KOKKOS_FUNC_QUALIFIER
-void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t gmx_unused              *nb,
+void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t gmx_unused            *kknb,
 				const struct nbnxn_atomdata_t gmx_unused *nbat) KOKKOS_FUNC_TERM
 
 #ifdef __cplusplus

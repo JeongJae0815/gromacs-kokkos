@@ -46,12 +46,67 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/pbcutil/ishift.h"
 #include "gromacs/utility/smalloc.h"
 
+#include "kokkos_memory.h"
 #include "nbnxn_kokkos_types.h"
 
+
+/*****************************************************************************************************/
+/*! Initializes the atomdata structure first time, it only gets filled at
+    pair-search. */
+static void init_atomdata_first(kokkos_atomdata_t         *kkat,
+				const nbnxn_atomdata_t    *nbat)
+{
+
+    kkat->ntype  = nbat->ntype;
+
+    /* for now, Kokkos kernel is targeted only for Intel Xeon Phis.
+     * since, Kokkos uses Phis in a native mode, host and device Views point to the same memory
+     * therefore, (for now), we are using only host View and setting dual and device views to NULL
+     */
+    destroy_kokkos(kkat->k_xq); destroy_kokkos(kkat->d_xq); destroy_kokkos(kkat->h_xq);
+    destroy_kokkos(kkat->k_f); destroy_kokkos(kkat->d_f); destroy_kokkos(kkat->h_f);
+    destroy_kokkos(kkat->k_e_lj); destroy_kokkos(kkat->d_e_lj); destroy_kokkos(kkat->h_e_lj);
+    destroy_kokkos(kkat->k_e_el); destroy_kokkos(kkat->d_e_el); destroy_kokkos(kkat->h_e_el);
+    destroy_kokkos(kkat->k_fshift); destroy_kokkos(kkat->d_fshift); destroy_kokkos(kkat->h_fshift);
+    destroy_kokkos(kkat->k_atom_types); destroy_kokkos(kkat->d_atom_types); destroy_kokkos(kkat->h_atom_types);
+    destroy_kokkos(kkat->k_shift_vec); destroy_kokkos(kkat->d_shift_vec); destroy_kokkos(kkat->h_shift_vec);
+
+    // it would be better if the View allcoations are handled by templated functions defined in memory_kokkos.h
+    // such as---->  create_kokkos(kkat->h_shift_vec, nbat->shift_vec, SHIFTS, 3);
+    // but there are compiling issues that needs to be resolved
+    // for now initializing Views here only
+
+    // stat        = cudaMalloc((void**)&ad->shift_vec, SHIFTS*sizeof(*ad->shift_vec));
+    kkat->h_shift_vec = HAT::t_real_1d_3(&nbat->shift_vec[0][0], SHIFTS, DIM);
+    kkat->bShiftVecUploaded = false;
+
+    // stat = cudaMalloc((void**)&ad->fshift, SHIFTS*sizeof(*ad->fshift));
+    kkat->h_fshift = HAT::t_real_1d(nbat->out->fshift, SHIFTS*DIM);
+
+    // for now not computing energies in Kokkos kernel
+    // stat = cudaMalloc((void**)&ad->e_lj, sizeof(*ad->e_lj));
+    // stat = cudaMalloc((void**)&ad->e_el, sizeof(*ad->e_el));
+
+    /* initialize to NULL poiters to data that is not allocated here and will
+       need reallocation in nbnxn_kokkos_init_atomdata */
+    destroy_kokkos(kkat->k_xq);
+    destroy_kokkos(kkat->k_f);
+
+    /* size -1 indicates that the respective array hasn't been initialized yet */
+    kkat->natoms = -1;
+    kkat->nalloc = -1;
+
+    printf("\n Initialized constant arrays in Kokkos \n");
+}
+/*****************************************************************************************************/
+
+/*****************************************************************************************************/
 void nbnxn_kokkos_init(FILE                 *fplog,
 		       gmx_nbnxn_kokkos_t   **p_nb)
 {
@@ -71,21 +126,45 @@ void nbnxn_kokkos_init(FILE                 *fplog,
     }
 
 }
+/*****************************************************************************************************/
 
+/*****************************************************************************************************/
+void nbnxn_kokkos_init_const(gmx_nbnxn_kokkos_t                    *nb,
+			     const interaction_const_t             *ic,
+			     const struct nonbonded_verlet_group_t *nbv_group)
+{
+    init_atomdata_first(nb->atdat, nbv_group[0].nbat);
+    // init_nbparam(nb->nbparam, ic, nbv_group[0].nbat, nb->dev_info);
+
+    /* clear energy and shift force outputs */
+    // nbnxn_cuda_clear_e_fshift(nb);
+}
+/*****************************************************************************************************/
+
+/*****************************************************************************************************/
 void nbnxn_kokkos_finalize()
 {
 
 }
+/*****************************************************************************************************/
 
-void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t       *nb,
+/*****************************************************************************************************/
+void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t            *kknb,
 				const struct nbnxn_atomdata_t *nbat)
 {
     int            nalloc, natoms;
     bool           realloced;
-    kokkos_atomdata_t *d_atdat   = nb->atdat;
+    kokkos_atomdata_t *d_atdat   = kknb->atdat;
 
     natoms    = nbat->natoms;
     realloced = false;
+
+    // if (bDoTime)
+    // {
+    //     /* time async copy */
+    //     stat = cudaEventRecord(timers->start_atdat, ls);
+    //     CU_RET_ERR(stat, "cudaEventRecord failed");
+    // }
 
     /* need to reallocate if we have to copy more atoms than the amount of space
        available and only allocate if we haven't initialized yet, i.e d_atdat->natoms == -1 */
@@ -127,3 +206,4 @@ void nbnxn_kokkos_init_atomdata(gmx_nbnxn_kokkos_t       *nb,
     //                   natoms*sizeof(*d_atdat->atom_types), ls);
 
 }
+/*****************************************************************************************************/

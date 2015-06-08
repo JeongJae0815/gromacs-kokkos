@@ -737,7 +737,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     int                 start, homenr;
     double              mu[2*DIM];
     gmx_bool            bStateChanged, bNS, bFillGrid, bCalcCGCM;
-    gmx_bool            bDoLongRange, bDoForces, bSepLRF, bUseGPU, bUseOrEmulGPU;
+    gmx_bool            bDoLongRange, bDoForces, bSepLRF, bUseGPU, bUseOrEmulGPU, bUseKokkos;
     gmx_bool            bDiffKernels = FALSE;
     rvec                vzero, box_diag;
     float               cycles_pme, cycles_force, cycles_wait_gpu;
@@ -774,6 +774,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     bSepLRF       = (bDoLongRange && bDoForces && (flags & GMX_FORCE_SEPLRF));
     bUseGPU       = fr->nbv->bUseGPU;
     bUseOrEmulGPU = bUseGPU || (nbv->grp[0].kernel_type == nbnxnk8x8x8_PlainC);
+    bUseKokkos    = fr->nbv->bUseKokkos;
 
     if (bStateChanged)
     {
@@ -921,6 +922,21 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU_NB);
         nbnxn_gpu_upload_shiftvec(nbv->gpu_nbv, nbv->grp[eintLocal].nbat);
         wallcycle_stop(wcycle, ewcLAUNCH_GPU_NB);
+    }
+
+    /* initialize the Kokkos atom data and copy shift vector */
+    if (bUseKokkos)
+    {
+        if (bNS)
+        {
+	  //       wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU_NB);
+	  //            nbnxn_kokkos_init_atomdata(nbv->kokkos_nbv, nbv->grp[eintLocal].nbat);
+	    //            wallcycle_stop(wcycle, ewcLAUNCH_GPU_NB);
+        }
+
+	//        wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU_NB);
+	//        nbnxn_kokkos_upload_shiftvec(nbv->kokkos_nbv, nbv->grp[eintLocal].nbat);
+	//        wallcycle_stop(wcycle, ewcLAUNCH_GPU_NB);
     }
 
     /* do local pair search */

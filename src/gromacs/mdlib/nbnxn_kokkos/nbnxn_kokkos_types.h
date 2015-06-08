@@ -77,7 +77,7 @@ struct kokkos_atomdata
     int      natoms_local;      /**< number of local atoms                        */
     int      nalloc;            /**< allocation size for the atom data (xq, f)    */
 
-    int      ntypes;            /**< number of atom types                         */
+    int      ntype;             /**< number of atom types                         */
 
     bool     bShiftVecUploaded; /**< true if the shift vector has been uploaded   */
 
@@ -85,43 +85,43 @@ struct kokkos_atomdata
     DAT::tdual_xq_array   k_xq;     /**< atom coordinates + charges, size natoms kokkos dual view */
     DAT::tdual_f_array    k_f;      /**< force output array, size natoms kokkos dual view         */
 
-    DAT::tdual_float_1d   k_e_lj;   /**< LJ energy output, size 1 kokkos dual view                */
-    DAT::tdual_float_1d   k_e_el;   /**< Electrostatics energy input, size 1 kokkos dual view     */
+    DAT::tdual_real_1d   k_e_lj;   /**< LJ energy output, size 1 kokkos dual view                */
+    DAT::tdual_real_1d   k_e_el;   /**< Electrostatics energy input, size 1 kokkos dual view     */
 
-    DAT::tdual_f_array    k_fshift; /**< shift forces kokkos dual view                            */
+    DAT::tdual_real_1d    k_fshift; /**< shift forces kokkos dual view                            */
 
 
     DAT::tdual_int_1d k_atom_types; /**< atom type indices, size natoms kokkos dual view          */
 
-    DAT::tdual_f_array  k_shift_vec;/**< shifts kokkos dual view                                  */
+    DAT::tdual_real_1d_3  k_shift_vec;/**< shifts kokkos dual view                               */
 
   /* Views on Kokkos device */
     DAT::t_xq_array   d_xq;     /**< atom coordinates + charges, size natoms on kokkos device */
     DAT::t_f_array    d_f;      /**< force output array, size natoms on kokkos device         */
 
-    DAT::t_float_1d   d_e_lj;   /**< LJ energy output, size 1 on kokkos device                */
-    DAT::t_float_1d   d_e_el;   /**< Electrostatics energy input, size 1 on kokkos device     */
+    DAT::t_real_1d   d_e_lj;   /**< LJ energy output, size 1 on kokkos device                */
+    DAT::t_real_1d   d_e_el;   /**< Electrostatics energy input, size 1 on kokkos device     */
 
-    DAT::t_f_array    d_fshift; /**< shift forces on kokkos device                            */
+    DAT::t_real_1d    d_fshift; /**< shift forces on kokkos device                            */
 
 
     DAT::t_int_1d d_atom_types; /**< atom type indices, size natoms on kokkos device          */
 
-    DAT::t_f_array  d_shift_vec;/**< shifts on kokkos device                                  */
+    DAT::t_real_1d_3  d_shift_vec;/**< shifts on kokkos device                                  */
 
   /* Views on Kokkos host */
     HAT::t_xq_array   h_xq;     /**< atom coordinates + charges, size natoms on kokkos host  */
     HAT::t_f_array    h_f;      /**< force output array, size natoms on kokkos host          */
 
-    HAT::t_float_1d   h_e_lj;   /**< LJ energy output, size 1 on kokkos host                 */
-    HAT::t_float_1d   h_e_el;   /**< Electrostatics energy input, size 1 on kokkos host      */
+    HAT::t_real_1d   h_e_lj;   /**< LJ energy output, size 1 on kokkos host                 */
+    HAT::t_real_1d   h_e_el;   /**< Electrostatics energy input, size 1 on kokkos host      */
 
-    HAT::t_f_array    h_fshift; /**< shift forces on kokkos host                             */
+    HAT::t_real_1d    h_fshift; /**< shift forces on kokkos host                             */
 
 
     HAT::t_int_1d h_atom_types; /**< atom type indices, size natoms on kokkos host           */
 
-    HAT::t_f_array  h_shift_vec;/**< shifts on kokkos host                                   */
+    HAT::t_real_1d_3  h_shift_vec;/**< shifts on kokkos host                                   */
 
 };
 

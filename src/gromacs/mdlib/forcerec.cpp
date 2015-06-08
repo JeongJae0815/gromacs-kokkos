@@ -2130,6 +2130,40 @@ initialize_gpu_constants(const t_commrec gmx_unused      *cr,
 
 }
 
+/*! \brief Manage initialization within the NBNXN module of
+ * run-time constants.
+ */
+static void
+initialize_kokkos_constants(const t_commrec gmx_unused      *cr,
+			    interaction_const_t             *interaction_const,
+			    const struct nonbonded_verlet_t *nbv)
+{
+    if (nbv != NULL && nbv->bUseKokkos)
+    {
+        nbnxn_kokkos_init_const(nbv->kokkos_nbv, interaction_const, nbv->grp);
+
+        /* With tMPI + GPUs some ranks may be sharing GPU(s) and therefore
+         * also sharing texture references. To keep the code simple, we don't
+         * treat texture references as shared resources, but this means that
+         * the coulomb_tab and nbfp texture refs will get updated by multiple threads.
+         * Hence, to ensure that the non-bonded kernels don't start before all
+         * texture binding operations are finished, we need to wait for all ranks
+         * to arrive here before continuing.
+         *
+         * Note that we could omit this barrier if GPUs are not shared (or
+         * texture objects are used), but as this is initialization code, there
+         * is no point in complicating things.
+         */
+// #ifdef GMX_THREAD_MPI
+//         if (PAR(cr))
+//         {
+//             gmx_barrier(cr);
+//         }
+// #endif  /* GMX_THREAD_MPI */
+    }
+
+}
+
 static void init_nb_verlet(FILE                *fp,
                            nonbonded_verlet_t **nb_verlet,
                            gmx_bool             bFEP_NonBonded,
@@ -2257,7 +2291,7 @@ static void init_nb_verlet(FILE                *fp,
 	  nbv->min_ci_balanced = 0;
             if (debug)
             {
-                fprintf(debug, "Neighbor-list balancing parameter: %d (auto-adjusted to the number of GPU multi-processors)\n",
+                fprintf(debug, "Neighbor-list balancing parameter: %d (set to 0 for Kokkos kernel)\n",
                         nbv->min_ci_balanced);
             }
         }
@@ -3284,6 +3318,7 @@ void init_forcerec(FILE              *fp,
     }
 
     initialize_gpu_constants(cr, fr->ic, fr->nbv);
+    initialize_kokkos_constants(cr, fr->ic, fr->nbv);
     init_interaction_const_tables(fp, fr->ic,
                                   uses_simple_tables(fr->cutoff_scheme, fr->nbv, -1),
                                   rtab);
