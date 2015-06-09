@@ -37,7 +37,6 @@
 #define NB_VERLET_H
 
 #include "gromacs/mdlib/nbnxn_gpu_types.h"
-#include "gromacs/mdlib/nbnxn_kokkos_types.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
 
 #ifdef __cplusplus
@@ -108,8 +107,7 @@ typedef struct nonbonded_verlet_t {
     int                      min_ci_balanced; /* pair list balancing parameter
                                                  used for the 8x8x8 GPU kernels    */
 
-    gmx_bool                 bUseKokkos;      /* TRUE when Kokkos acceleration is used */
-    gmx_nbnxn_kokkos_t      *kokkos_nbv;      /* pointer to Kokkos nb verlet data     */
+  gmx_bool                 bUseKokkos;      /* TRUE when Kokkos acceleration is used */
 } nonbonded_verlet_t;
 
 /*! \brief Getter for bUseGPU */

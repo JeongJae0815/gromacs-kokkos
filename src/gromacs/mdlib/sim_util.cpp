@@ -896,15 +896,33 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         if (nbv->ngrp == 1 ||
             nbv->grp[eintNonlocal].nbat == nbv->grp[eintLocal].nbat)
         {
-            nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatAll,
-                               nbv->nbs, mdatoms, fr->cginfo);
+	  if (bUseKokkos)
+	    {
+	      nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatAll,
+					nbv->nbs, mdatoms, fr->cginfo);
+	    }
+	  else
+	    {
+	      nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatAll,
+				 nbv->nbs, mdatoms, fr->cginfo);
+	    }
         }
         else
         {
+	  if( bUseKokkos)
+	    {
+            nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatLocal,
+				      nbv->nbs, mdatoms, fr->cginfo);
+            nbnxn_atomdata_set_kokkos(nbv->grp[eintNonlocal].nbat, eatAll,
+				      nbv->nbs, mdatoms, fr->cginfo);
+	    }
+	  else
+	    {
             nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatLocal,
                                nbv->nbs, mdatoms, fr->cginfo);
             nbnxn_atomdata_set(nbv->grp[eintNonlocal].nbat, eatAll,
                                nbv->nbs, mdatoms, fr->cginfo);
+	    }
         }
         wallcycle_stop(wcycle, ewcNS);
     }
@@ -967,8 +985,10 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     {
         wallcycle_start(wcycle, ewcNB_XF_BUF_OPS);
         wallcycle_sub_start(wcycle, ewcsNB_X_BUF_OPS);
-        nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, FALSE, x,
-                                        nbv->grp[eintLocal].nbat);
+
+	nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, FALSE, x,
+					nbv->grp[eintLocal].nbat);
+
         wallcycle_sub_stop(wcycle, ewcsNB_X_BUF_OPS);
         wallcycle_stop(wcycle, ewcNB_XF_BUF_OPS);
     }
@@ -998,8 +1018,10 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
              */
             wallcycle_start(wcycle, ewcNB_XF_BUF_OPS);
             wallcycle_sub_start(wcycle, ewcsNB_X_BUF_OPS);
-            nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, TRUE, x,
-                                            nbv->grp[eintNonlocal].nbat);
+
+	    nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, TRUE, x,
+					    nbv->grp[eintNonlocal].nbat);
+
             wallcycle_sub_stop(wcycle, ewcsNB_X_BUF_OPS);
             wallcycle_stop(wcycle, ewcNB_XF_BUF_OPS);
         }
@@ -1048,8 +1070,10 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
 
             wallcycle_start(wcycle, ewcNB_XF_BUF_OPS);
             wallcycle_sub_start(wcycle, ewcsNB_X_BUF_OPS);
-            nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatNonlocal, FALSE, x,
-                                            nbv->grp[eintNonlocal].nbat);
+
+	    nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatNonlocal, FALSE, x,
+					    nbv->grp[eintNonlocal].nbat);
+
             wallcycle_sub_stop(wcycle, ewcsNB_X_BUF_OPS);
             cycles_force += wallcycle_stop(wcycle, ewcNB_XF_BUF_OPS);
         }

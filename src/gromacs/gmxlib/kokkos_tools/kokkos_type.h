@@ -119,7 +119,7 @@ typedef tdual_int_1d::t_dev_const_randomread t_int_1d_randomread;
 // 1d real array n with right layout
 // real is float in single precision and double in double precision
 // using right layout because the view is initialized from exiting arrays in hostspace with righlayout
-typedef Kokkos::DualView<real*, Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_real_1d;
+typedef Kokkos::DualView<real*, Kokkos::LayoutRight, GMXDeviceType> tdual_real_1d;
 typedef tdual_real_1d::t_dev t_real_1d;
 typedef tdual_real_1d::t_dev_const t_real_1d_const;
 typedef tdual_real_1d::t_dev_um t_real_1d_um;
@@ -220,7 +220,7 @@ typedef tdual_int_1d::t_host_const_randomread t_int_1d_randomread;
 // 1d real array n with right layout
 // real is float in single precision and double in double precision
 // using right layout because the view is initialized from exiting arrays in hostspace with righlayout
-typedef Kokkos::DualView<real*, Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_real_1d;
+typedef Kokkos::DualView<real*, Kokkos::LayoutRight, GMXDeviceType> tdual_real_1d;
 typedef tdual_real_1d::t_host t_real_1d;
 typedef tdual_real_1d::t_host_const t_real_1d_const;
 typedef tdual_real_1d::t_host_um t_real_1d_um;

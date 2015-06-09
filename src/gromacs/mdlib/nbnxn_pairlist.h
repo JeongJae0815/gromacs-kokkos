@@ -45,6 +45,11 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/bitmask.h"
 #include "gromacs/utility/real.h"
+#ifdef __cplusplus
+#ifdef GMX_KOKKOS
+#include "gromacs/gmxlib/kokkos_tools/kokkos_type.h"
+#endif
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -249,6 +254,15 @@ typedef struct nbnxn_atomdata_t {
     int                      xstride;         /* stride for a coordinate in x (usually 3 or 4)      */
     int                      fstride;         /* stride for a coordinate in f (usually 3 or 4)      */
     real                    *x;               /* x and possibly q, size natoms*xstride              */
+
+#ifdef __cplusplus
+#ifdef GMX_KOKKOS
+  DAT::tdual_real_1d       k_x;             /* kokkos: dual view for x                            */
+  DAT::t_real_1d           d_x;             /* kokkos: device view for x                          */
+  HAT::t_real_1d           h_x;             /* kokkos: host view for x                            */
+#endif
+#endif 
+
     /* j-atom minus i-atom index for generating self and Newton exclusions
      * cluster-cluster pairs of the diagonal, for 4xn and 2xnn kernels.
      */
@@ -267,6 +281,9 @@ typedef struct nbnxn_atomdata_t {
     nbnxn_buffer_flags_t     buffer_flags;           /* Flags for buffer zeroing+reduc.  */
     gmx_bool                 bUseTreeReduce;         /* Use tree for force reduction */
     tMPI_Atomic_t           *syncStep;               /* Synchronization step for tree reduce */
+
+
+
 } nbnxn_atomdata_t;
 
 #ifdef __cplusplus

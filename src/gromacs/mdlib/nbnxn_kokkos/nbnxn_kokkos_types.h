@@ -53,10 +53,9 @@
 #include <Kokkos_DualView.hpp>
 #include <Kokkos_Vectorization.hpp>
 
+#include "gromacs/gmxlib/kokkos_tools/kokkos_type.h"
 #include "gromacs/legacyheaders/types/interaction_const.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
-
-#include "kokkos_type.h"
 
 #ifdef __cplusplus
 extern "C" {

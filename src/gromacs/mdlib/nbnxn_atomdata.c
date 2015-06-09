@@ -1212,9 +1212,15 @@ void nbnxn_atomdata_copy_x_to_nbat_x(const nbnxn_search_t nbs,
                      */
                     na_fill = na;
                 }
+#ifdef GMX_KOKKOS
+                copy_rvec_to_nbat_real_kokkos(nbs->a+ash, na, na_fill, x,
+					      nbat->XFormat, nbat, ash,
+					      0, 0, 0);
+#else
                 copy_rvec_to_nbat_real(nbs->a+ash, na, na_fill, x,
                                        nbat->XFormat, nbat->x, ash,
                                        0, 0, 0);
+#endif
             }
         }
     }

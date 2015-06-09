@@ -43,9 +43,9 @@
 #ifndef NBNXN_KOKKOS_DATA_MGMT_H
 #define NBNXN_KOKKOS_DATA_MGMT_H
 
+#include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
 #include "gromacs/legacyheaders/types/interaction_const.h"
 #include "gromacs/legacyheaders/types/simple.h"
-#include "gromacs/mdlib/nbnxn_kokkos/kokkos_macros.h"
 #include "gromacs/mdlib/nbnxn_kokkos_types.h"
 
 #ifdef __cplusplus

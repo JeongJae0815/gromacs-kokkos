@@ -73,7 +73,6 @@
 #include "gromacs/mdlib/nbnxn_atomdata.h"
 #include "gromacs/mdlib/nbnxn_consts.h"
 #include "gromacs/mdlib/nbnxn_gpu_data_mgmt.h"
-#include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
 #include "gromacs/mdlib/nbnxn_search.h"
 #include "gromacs/mdlib/nbnxn_simd.h"
 #include "gromacs/pbcutil/ishift.h"
@@ -2140,7 +2139,7 @@ initialize_kokkos_constants(const t_commrec gmx_unused      *cr,
 {
     if (nbv != NULL && nbv->bUseKokkos)
     {
-        nbnxn_kokkos_init_const(nbv->kokkos_nbv, interaction_const, nbv->grp);
+      //        nbnxn_kokkos_init_const(nbv->kokkos_nbv, interaction_const, nbv->grp);
 
         /* With tMPI + GPUs some ranks may be sharing GPU(s) and therefore
          * also sharing texture references. To keep the code simple, we don't
@@ -2268,7 +2267,7 @@ static void init_nb_verlet(FILE                *fp,
     else if (nbv->bUseKokkos)
     {
         /* init the Kokkos views */
-        nbnxn_kokkos_init(fp, &nbv->kokkos_nbv);
+      //        nbnxn_kokkos_init(fp, &nbv->kokkos_nbv);
 
         if ((env = getenv("GMX_NB_MIN_CI")) != NULL)
         {
@@ -2353,14 +2352,28 @@ static void init_nb_verlet(FILE                *fp,
 
 
             snew(nbv->grp[i].nbat, 1);
-            nbnxn_atomdata_init(fp,
-                                nbv->grp[i].nbat,
-                                nbv->grp[i].kernel_type,
-                                enbnxninitcombrule,
-                                fr->ntype, fr->nbfp,
-                                ir->opts.ngener,
-                                bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
-                                nb_alloc, nb_free);
+	    if (nbv->bUseKokkos)
+	      {
+		nbnxn_atomdata_init_kokkos(fp,
+				    nbv->grp[i].nbat,
+				    nbv->grp[i].kernel_type,
+				    enbnxninitcombrule,
+				    fr->ntype, fr->nbfp,
+				    ir->opts.ngener,
+				    bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
+				    nb_alloc, nb_free);
+	      }
+	    else
+	      {
+		nbnxn_atomdata_init(fp,
+				    nbv->grp[i].nbat,
+				    nbv->grp[i].kernel_type,
+				    enbnxninitcombrule,
+				    fr->ntype, fr->nbfp,
+				    ir->opts.ngener,
+				    bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
+				    nb_alloc, nb_free);
+	      }
         }
         else
         {

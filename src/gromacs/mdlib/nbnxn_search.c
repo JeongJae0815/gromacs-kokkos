@@ -1211,9 +1211,15 @@ void fill_cell(const nbnxn_search_t nbs,
         nbs->cell[nbs->a[a]] = a;
     }
 
+#ifdef GMX_KOKKOS
+    copy_rvec_to_nbat_real_kokkos(nbs->a+a0, a1-a0, grid->na_c, x,
+				  nbat->XFormat, nbat, a0,
+				  sx, sy, sz);
+#else
     copy_rvec_to_nbat_real(nbs->a+a0, a1-a0, grid->na_c, x,
                            nbat->XFormat, nbat->x, a0,
                            sx, sy, sz);
+#endif
 
     if (nbat->XFormat == nbatX4)
     {
@@ -1879,7 +1885,14 @@ void nbnxn_put_on_grid(nbnxn_search_t nbs,
     /* We need padding up to a multiple of the buffer flag size: simply add */
     if (nc_max*grid->na_sc + NBNXN_BUFFERFLAG_SIZE > nbat->nalloc)
     {
-        nbnxn_atomdata_realloc(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
+      if(nb_kernel_type==nbnxn_Kokkos)
+	{
+	  nbnxn_atomdata_realloc_kokkos(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
+	}
+      else
+	{
+	  nbnxn_atomdata_realloc(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
+	}
     }
 
     calc_cell_indices(nbs, dd_zone, grid, a0, a1, atinfo, x, move, nbat);

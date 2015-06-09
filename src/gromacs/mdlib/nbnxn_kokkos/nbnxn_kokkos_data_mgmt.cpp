@@ -46,13 +46,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "gromacs/gmxlib/kokkos_tools/kokkos_memory.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_kokkos_data_mgmt.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/utility/smalloc.h"
 
-#include "kokkos_memory.h"
+
 #include "nbnxn_kokkos_types.h"
 
 

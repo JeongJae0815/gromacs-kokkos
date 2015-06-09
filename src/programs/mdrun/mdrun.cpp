@@ -622,7 +622,12 @@ int gmx_mdrun(int argc, char *argv[])
     }
 
 #ifdef GMX_KOKKOS
-    Kokkos::finalize();
+#ifdef KOKKOS_HAVE_CUDA
+    Kokkos::Cuda::finalize();
+    Kokkos::HostSpace::execution_space::finalize();
+#else
+    Kokkos::HostSpace::execution_space::finalize();
+#endif
     printf("\n \n Finalizing Kokkos \n \n");
 #endif
 
