@@ -1767,6 +1767,7 @@ static void init_buffer_flags(nbnxn_buffer_flags_t *flags,
     int b;
 
     flags->nflag = (natoms + NBNXN_BUFFERFLAG_SIZE - 1)/NBNXN_BUFFERFLAG_SIZE;
+
     if (flags->nflag > flags->flag_nalloc)
     {
         flags->flag_nalloc = over_alloc_large(flags->nflag);

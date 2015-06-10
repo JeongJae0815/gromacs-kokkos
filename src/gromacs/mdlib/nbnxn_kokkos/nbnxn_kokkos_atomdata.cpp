@@ -51,6 +51,7 @@
 
 #include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
 #include "gromacs/gmxlib/kokkos_tools/kokkos_memory.h"
+#include "gromacs/gmxlib/kokkos_tools/kokkos_type.h"
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
 #include "gromacs/legacyheaders/macros.h"
 #include "gromacs/math/vec.h"
@@ -65,6 +66,7 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/fatalerror.h"
 
+#include "nbnxn_kokkos_types.h"
 
 static void copy_int_to_nbat_int(const int *a, int na, int na_round,
                                  const int *in, int fill, int *innb)
@@ -88,7 +90,7 @@ void copy_rvec_to_nbat_real_kokkos(const int *a, int na, int na_round,
 				   int a0, int cx, int cy, int cz)
 {
   copy_rvec_to_nbat_real(a, na, na_round, x, nbatFormat, nbat->x, a0, cx, cy, cz);
-  nbat->k_x.modify<GMXHostType>();
+  nbat->kk_nbat->k_x.modify<GMXHostType>();
 }
 
 /* Stores the LJ parameter data in a format convenient for different kernels */
@@ -199,7 +201,7 @@ void nbnxn_atomdata_realloc_kokkos(nbnxn_atomdata_t *nbat, int n)
     //                    nbat->natoms*nbat->xstride*sizeof(*nbat->x), //nbytes_copy
     //                    n*nbat->xstride*sizeof(*nbat->x), //nbytes_new
     //                    nbat->alloc, nbat->free); // ma,mf
-    grow_kokkos(nbat->k_x,nbat->x,n*nbat->xstride,"atomdata::x");
+    grow_kokkos(nbat->kk_nbat->k_x,nbat->x,n*nbat->xstride,"atomdata::x");
 
     for (t = 0; t < nbat->nout; t++)
     {
@@ -346,6 +348,9 @@ void nbnxn_atomdata_init_kokkos(FILE *fp,
     real     c6, c12, tol;
     char    *ptr;
     gmx_bool simple, bCombGeom, bCombLB, bSIMD;
+
+    /* allocate Kokkos atomdata struct */
+    snew(nbat->kk_nbat,1);
 
     if (alloc == NULL)
     {
@@ -572,7 +577,7 @@ void nbnxn_atomdata_init_kokkos(FILE *fp,
     nbat->xstride = (nbat->XFormat == nbatXYZQ ? STRIDE_XYZQ : DIM);
     nbat->fstride = (nbat->FFormat == nbatXYZQ ? STRIDE_XYZQ : DIM);
     /* Set Kokkos doual View and host pointer of x to NULL */
-    destroy_kokkos(nbat->k_x,nbat->x);
+    destroy_kokkos(nbat->kk_nbat->k_x,nbat->x);
 
 #ifdef GMX_NBNXN_SIMD
     if (simple)
@@ -937,10 +942,10 @@ void nbnxn_atomdata_set_kokkos(nbnxn_atomdata_t    *nbat,
 
     // for kokkos, nbat->XFormat == nbatXYZQ is used hence x is modified when charges are modified
     // in set_charges, mask_fep, 
-    nbat->k_x.modify<GMXHostType>();
+    nbat->kk_nbat->k_x.modify<GMXHostType>();
 }
 
 void nbnxn_atomdata_free_kokkos(FILE *fp, nbnxn_atomdata_t *nbat)
 {
-  destroy_kokkos(nbat->k_x,nbat->x);
+  destroy_kokkos(nbat->kk_nbat->k_x,nbat->x);
 }
