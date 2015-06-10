@@ -942,21 +942,6 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         wallcycle_stop(wcycle, ewcLAUNCH_GPU_NB);
     }
 
-    /* initialize the Kokkos atom data and copy shift vector */
-    if (bUseKokkos)
-    {
-        if (bNS)
-        {
-	  //       wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU_NB);
-	  //            nbnxn_kokkos_init_atomdata(nbv->kokkos_nbv, nbv->grp[eintLocal].nbat);
-	    //            wallcycle_stop(wcycle, ewcLAUNCH_GPU_NB);
-        }
-
-	//        wallcycle_start_nocount(wcycle, ewcLAUNCH_GPU_NB);
-	//        nbnxn_kokkos_upload_shiftvec(nbv->kokkos_nbv, nbv->grp[eintLocal].nbat);
-	//        wallcycle_stop(wcycle, ewcLAUNCH_GPU_NB);
-    }
-
     /* do local pair search */
     if (bNS)
     {

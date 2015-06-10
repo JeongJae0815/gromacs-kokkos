@@ -49,6 +49,7 @@
 
 #include "thread_mpi/atomic.h"
 
+#include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
 #include "gromacs/gmxlib/kokkos_tools/kokkos_memory.h"
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
 #include "gromacs/legacyheaders/macros.h"
