@@ -1825,7 +1825,7 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 #ifdef GMX_KOKKOS
     /* free Kokkos views */
     nbnxn_atomdata_free_kokkos(fplog, fr->nbv->grp[0].nbat);
-    nbnxn_atomdata_free_kokkos(fplog, fr->nbv->grp[1].nbat);
+    //    nbnxn_atomdata_free_kokkos(fplog, fr->nbv->grp[1].nbat);
 #endif    
     debug_gmx();
 

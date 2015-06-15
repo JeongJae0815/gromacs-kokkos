@@ -948,4 +948,5 @@ void nbnxn_atomdata_set_kokkos(nbnxn_atomdata_t    *nbat,
 void nbnxn_atomdata_free_kokkos(FILE *fp, nbnxn_atomdata_t *nbat)
 {
   destroy_kokkos(nbat->kk_nbat->k_x,nbat->x);
+  sfree(nbat->kk_nbat);
 }

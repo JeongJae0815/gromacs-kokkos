@@ -55,15 +55,38 @@
 extern "C" {
 #endif
 
-struct nbnxn_kokkos_t
-{
-  DAT::tdual_real_1d       k_x;             /* kokkos: dual view for x                            */
-  DAT::t_real_1d           d_x;             /* kokkos: device view for x                          */
-  HAT::t_real_1d           h_x;             /* kokkos: host view for x                            */
-};
+  struct kokkos_atomdata_t
+  {
+    DAT::tdual_real_1d       k_x;         /* kokkos: dual view for x              */
+    DAT::t_real_1d           d_x;         /* kokkos: device view for x            */
+    HAT::t_real_1d           h_x;         /* kokkos: host view for x              */
+  };
+
+  struct kokkos_pairlist_t
+  {
+    
+    DAT::tdual_ci_1d       k_ci;          /* The i-cluster list, size nci             */
+    DAT::tdual_sci_1d      k_sci;         /* The i-super-cluster list                 */
+    DAT::tdual_cj_1d       k_cj;          /* The j-cluster list, size ncj             */
+    DAT::tdual_cj4_1d      k_cj4;         /* The 4*j cluster list, size ncj4          */
+    DAT::tdual_excl_1d     k_excl;        /* Atom interaction bits (non-exclusions)   */
+
+    DAT::t_ci_1d           d_ci;          /* The i-cluster list, size nci             */
+    DAT::t_sci_1d          d_sci;         /* The i-super-cluster list                 */
+    DAT::t_cj_1d           d_cj;          /* The j-cluster list, size ncj             */
+    DAT::t_cj4_1d          d_cj4;         /* The 4*j cluster list, size ncj4          */
+    DAT::t_excl_1d         d_excl;        /* Atom interaction bits (non-exclusions)   */
+
+    HAT::tdual_ci_1d       h_ci;          /* The i-cluster list, size nci             */
+    HAT::tdual_sci_1d      h_sci;         /* The i-super-cluster list                 */
+    HAT::tdual_cj_1d       h_cj;          /* The j-cluster list, size ncj             */
+    HAT::tdual_cj4_1d      h_cj4;         /* The 4*j cluster list, size ncj4          */
+    HAT::tdual_excl_1d     h_excl;        /* Atom interaction bits (non-exclusions)   */
+
+  };
 
 #ifdef __cplusplus
-}
+  }
 #endif
 
 #endif  /* NBNXN_KOKKOS_TYPES_H */

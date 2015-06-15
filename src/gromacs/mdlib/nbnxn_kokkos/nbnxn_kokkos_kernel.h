@@ -1,9 +1,11 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2015, by the GROMACS development team, led by Mark
- * Abraham, David van der Spoel, Berk Hess, and Erik Lindahl, and
- * including many others, as listed in the AUTHORS file in the
+ * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
+ * Copyright (c) 2001-2012, The GROMACS development team.
+ * Copyright (c) 2012,2013,2014,2015, by the GROMACS development team, led by
+ * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
+ * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
  *
  * GROMACS is free software; you can redistribute it and/or
@@ -33,32 +35,22 @@
  * the research papers on the package. Check out http://www.gromacs.org.
  */
 
-#ifndef GMX_MDLIB_NBNXN_KOKKOS_TYPES_H
-#define GMX_MDLIB_NBNXN_KOKKOS_TYPES_H
+/*! \internal \file
+ *  \brief
+ *  Nonbonded Kokkos kernel functions.
+ *
+ *  \author Sikandar Y. Mashayak <symashayak@gmail.com>
+ *  \ingroup module_mdlib
+ */
 
-#include "config.h"
+#ifndef NBNXN_KOKKOS_KERNEL_H
+#define NBNXN_KOKKOS_KERNEL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <Kokkos_Vectorization.hpp>
 
-#ifdef GMX_KOKKOS
+#include "nbnxn_kokkos_types.h"
 
-    struct kokkos_atomdata_t;
-    typedef struct kokkos_atomdata_t nbnxn_kokkos_atomdata_t;
-
-    struct kokkos_pairlist_t;
-    typedef struct kokkos_pairlist_t nbnxn_kokkos_pairlist_t;
-
-#else
-
-    typedef int nbnxn_kokkos_atomdata_t;
-    typedef int nbnxn_kokkos_pairlist_t;
-
-#endif
-
-#ifdef __cplusplus
-}
-#endif
+struct kokkos_kernel_functor;
+real kokkos_launch_kernel ();
 
 #endif

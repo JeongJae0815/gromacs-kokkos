@@ -166,6 +166,9 @@ typedef struct nbnxn_pairlist_t {
     struct nbnxn_list_work *work;
 
     gmx_cache_protect_t     cp1;
+
+    nbnxn_kokkos_pairlist_t *kk_plist;    /* Structure with Kokkos views for pairlist arrays when Kokkos kernel is used */
+
 } nbnxn_pairlist_t;
 
 typedef struct {
@@ -270,7 +273,7 @@ typedef struct nbnxn_atomdata_t {
     gmx_bool                 bUseTreeReduce;         /* Use tree for force reduction */
     tMPI_Atomic_t           *syncStep;               /* Synchronization step for tree reduce */
 
-    gmx_nbnxn_kokkos_t      *kk_nbat;                /* structure with Kokkos Views when Kokkos kernel is used */
+    nbnxn_kokkos_atomdata_t *kk_nbat;                /* structure with Kokkos Views when Kokkos kernel is used */
 
 } nbnxn_atomdata_t;
 

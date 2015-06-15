@@ -52,6 +52,7 @@
 #include <Kokkos_Vectorization.hpp>
 
 #include "gromacs/math/vectypes.h"
+#include "gromacs/mdlib/nbnxn_pairlist.h"
 
 // set GMXHostype and GMXDeviceType from Kokkos Default Types
 typedef Kokkos::DefaultExecutionSpace GMXDeviceType;
@@ -73,14 +74,8 @@ typedef Kokkos::HostSpace::execution_space GMXHostType;
 // };
 // #endif
 
-typedef float GMX_FLOAT;
-typedef float X_FLOAT;
-typedef float XQ_FLOAT;
-typedef float V_FLOAT;
-typedef float F_FLOAT;
-typedef float E_FLOAT;
-
 // GROMACS types
+
 
 template <class DeviceType>
 struct ArrayTypes;
@@ -91,25 +86,17 @@ struct ArrayTypes<GMXDeviceType> {
 // scalar types
 
 typedef Kokkos::
-  DualView<int, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_int_scalar;
+  DualView<int, GMXDeviceType::array_layout, GMXDeviceType> tdual_int_scalar;
 typedef tdual_int_scalar::t_dev t_int_scalar;
 typedef tdual_int_scalar::t_dev_const t_int_scalar_const;
 typedef tdual_int_scalar::t_dev_um t_int_scalar_um;
 typedef tdual_int_scalar::t_dev_const_um t_int_scalar_const_um;
 
-typedef Kokkos::
-  DualView<GMX_FLOAT, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> 
-  tdual_float_scalar;
-typedef tdual_float_scalar::t_dev t_float_scalar;
-typedef tdual_float_scalar::t_dev_const t_float_scalar_const;
-typedef tdual_float_scalar::t_dev_um t_float_scalar_um;
-typedef tdual_float_scalar::t_dev_const_um t_float_scalar_const_um;
-
 // generic array types
 
 // 1d int array
 typedef Kokkos::
-  DualView<int*, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_int_1d;
+  DualView<int*, GMXDeviceType::array_layout, GMXDeviceType> tdual_int_1d;
 typedef tdual_int_1d::t_dev t_int_1d;
 typedef tdual_int_1d::t_dev_const t_int_1d_const;
 typedef tdual_int_1d::t_dev_um t_int_1d_um;
@@ -126,63 +113,48 @@ typedef tdual_real_1d::t_dev_um t_real_1d_um;
 typedef tdual_real_1d::t_dev_const_um t_real_1d_const_um;
 typedef tdual_real_1d::t_dev_const_randomread t_real_1d_randomread;
 
-// 2d real array n*3 with right layout (array of gromacs rvec)
-// real is float in single precision and double in double precision
-// using right layout because the view is initialized from exiting arrays in hostspace with righlayout
-typedef Kokkos::DualView<real*[3], Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_real_1d_3;
-typedef tdual_real_1d_3::t_dev t_real_1d_3;
-typedef tdual_real_1d_3::t_dev_const t_real_1d_3_const;
-typedef tdual_real_1d_3::t_dev_um t_real_1d_3_um;
-typedef tdual_real_1d_3::t_dev_const_um t_real_1d_3_const_um;
-typedef tdual_real_1d_3::t_dev_const_randomread t_real_1d_3_randomread;
 
-// 1d float array n
-typedef Kokkos::DualView<GMX_FLOAT*, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_float_1d;
-typedef tdual_float_1d::t_dev t_float_1d;
-typedef tdual_float_1d::t_dev_const t_float_1d_const;
-typedef tdual_float_1d::t_dev_um t_float_1d_um;
-typedef tdual_float_1d::t_dev_const_um t_float_1d_const_um;
-typedef tdual_float_1d::t_dev_const_randomread t_float_1d_randomread;
+// pairlist related views
 
-//2d float array n
-typedef Kokkos::DualView<GMX_FLOAT**, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_float_2d;
-typedef tdual_float_2d::t_dev t_float_2d;
-typedef tdual_float_2d::t_dev_const t_float_2d_const;
-typedef tdual_float_2d::t_dev_um t_float_2d_um;
-typedef tdual_float_2d::t_dev_const_um t_float_2d_const_um;
-typedef tdual_float_2d::t_dev_const_randomread t_float_2d_randomread;
+// i-cluster list
+typedef Kokkos::DualView<nbnxn_ci_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_ci_1d;
+typedef tdual_ci_1d::t_dev t_ci_1d;
+typedef tdual_ci_1d::t_dev_const t_ci_1d_const;
+typedef tdual_ci_1d::t_dev_um t_ci_1d_um;
+typedef tdual_ci_1d::t_dev_const_um t_ci_1d_const_um;
+typedef tdual_ci_1d::t_dev_const_randomread t_ci_1d_randomread;
 
-//2d float array n*3 
-typedef Kokkos::DualView<GMX_FLOAT*[3], GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_float_1d_3;
-typedef tdual_float_1d_3::t_dev t_float_1d_3;
-typedef tdual_float_1d_3::t_dev_const t_float_1d_3_const;
-typedef tdual_float_1d_3::t_dev_um t_float_1d_3_um;
-typedef tdual_float_1d_3::t_dev_const_um t_float_1d_3_const_um;
-typedef tdual_float_1d_3::t_dev_const_randomread t_float_1d_3_randomread;
+// i-super-cluster list
+typedef Kokkos::DualView<nbnxn_sci_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_sci_1d;
+typedef tdual_sci_1d::t_dev t_sci_1d;
+typedef tdual_sci_1d::t_dev_const t_sci_1d_const;
+typedef tdual_sci_1d::t_dev_um t_sci_1d_um;
+typedef tdual_sci_1d::t_dev_const_um t_sci_1d_const_um;
+typedef tdual_sci_1d::t_dev_const_randomread t_sci_1d_randomread;
 
-//2d float array n*3 
-typedef Kokkos::DualView<GMX_FLOAT*[3], GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_f_array;
-typedef tdual_f_array::t_dev t_f_array;
-typedef tdual_f_array::t_dev_const t_f_array_const;
-typedef tdual_f_array::t_dev_um t_f_array_um;
-typedef tdual_f_array::t_dev_const_um t_f_array_const_um;
-typedef tdual_f_array::t_dev_const_randomread t_f_array_randomread;
+// j-cluster list
+typedef Kokkos::DualView<nbnxn_cj_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_cj_1d;
+typedef tdual_cj_1d::t_dev t_cj_1d;
+typedef tdual_cj_1d::t_dev_const t_cj_1d_const;
+typedef tdual_cj_1d::t_dev_um t_cj_1d_um;
+typedef tdual_cj_1d::t_dev_const_um t_cj_1d_const_um;
+typedef tdual_cj_1d::t_dev_const_randomread t_cj_1d_randomread;
 
-//2d float array n*4 
-typedef Kokkos::DualView<GMX_FLOAT*[4], GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_xq_array;
-typedef tdual_xq_array::t_dev t_xq_array;
-typedef tdual_xq_array::t_dev_const t_xq_array_const;
-typedef tdual_xq_array::t_dev_um t_xq_array_um;
-typedef tdual_xq_array::t_dev_const_um t_xq_array_const_um;
-typedef tdual_xq_array::t_dev_const_randomread t_xq_array_randomread;
+// 4*j-cluster list
+typedef Kokkos::DualView<nbnxn_cj4_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_cj4_1d;
+typedef tdual_cj4_1d::t_dev t_cj4_1d;
+typedef tdual_cj4_1d::t_dev_const t_cj4_1d_const;
+typedef tdual_cj4_1d::t_dev_um t_cj4_1d_um;
+typedef tdual_cj4_1d::t_dev_const_um t_cj4_1d_const_um;
+typedef tdual_cj4_1d::t_dev_const_randomread t_cj4_1d_randomread;
 
-// 1d rvec array n
-typedef Kokkos::DualView<rvec*, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_rvec_1d;
-typedef tdual_rvec_1d::t_dev t_rvec_1d;
-typedef tdual_rvec_1d::t_dev_const t_rvec_1d_const;
-typedef tdual_rvec_1d::t_dev_um t_rvec_1d_um;
-typedef tdual_rvec_1d::t_dev_const_um t_rvec_1d_const_um;
-typedef tdual_rvec_1d::t_dev_const_randomread t_rvec_1d_randomread;
+// Atom interaction bits non-exclusions
+typedef Kokkos::DualView<nbnxn_excl_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_excl_1d;
+typedef tdual_excl_1d::t_dev t_excl_1d;
+typedef tdual_excl_1d::t_dev_const t_excl_1d_const;
+typedef tdual_excl_1d::t_dev_um t_excl_1d_um;
+typedef tdual_excl_1d::t_dev_const_um t_excl_1d_const_um;
+typedef tdual_excl_1d::t_dev_const_randomread t_excl_1d_randomread;
 
 };
 
@@ -193,24 +165,16 @@ struct ArrayTypes<GMXHostType> {
 // scalar types
 
 typedef Kokkos::
-  DualView<int, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_int_scalar;
+  DualView<int, GMXDeviceType::array_layout, GMXDeviceType> tdual_int_scalar;
 typedef tdual_int_scalar::t_host t_int_scalar;
 typedef tdual_int_scalar::t_host_const t_int_scalar_const;
 typedef tdual_int_scalar::t_host_um t_int_scalar_um;
 typedef tdual_int_scalar::t_host_const_um t_int_scalar_const_um;
 
-typedef Kokkos::
-  DualView<GMX_FLOAT, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> 
-  tdual_float_scalar;
-typedef tdual_float_scalar::t_host t_float_scalar;
-typedef tdual_float_scalar::t_host_const t_float_scalar_const;
-typedef tdual_float_scalar::t_host_um t_float_scalar_um;
-typedef tdual_float_scalar::t_host_const_um t_float_scalar_const_um;
-
 // generic array types
 
 typedef Kokkos::
-  DualView<int*, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_int_1d;
+  DualView<int*, GMXDeviceType::array_layout, GMXDeviceType> tdual_int_1d;
 typedef tdual_int_1d::t_host t_int_1d;
 typedef tdual_int_1d::t_host_const t_int_1d_const;
 typedef tdual_int_1d::t_host_um t_int_1d_um;
@@ -227,65 +191,50 @@ typedef tdual_real_1d::t_host_um t_real_1d_um;
 typedef tdual_real_1d::t_host_const_um t_real_1d_const_um;
 typedef tdual_real_1d::t_host_const_randomread t_real_1d_randomread;
 
-// 2d real array n*3 with right layout (array of gromacs rvec)
-// real is float in single precision and double in double precision
-// using right layout because the view is initialized from exiting arrays in hostspace with righlayout
-typedef Kokkos::DualView<real*[3], Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_real_1d_3;
-typedef tdual_real_1d_3::t_host t_real_1d_3;
-typedef tdual_real_1d_3::t_host_const t_real_1d_3_const;
-typedef tdual_real_1d_3::t_host_um t_real_1d_3_um;
-typedef tdual_real_1d_3::t_host_const_um t_real_1d_3_const_um;
-typedef tdual_real_1d_3::t_host_const_randomread t_real_1d_3_randomread;
+// pairlist related views
 
-// 1d float array n
-typedef Kokkos::DualView<GMX_FLOAT*, GMXDeviceType::array_layout, GMXDeviceType, Kkkos::MemoryTraits<Kokkos::Unmanaged>> tdual_float_1d;
-typedef tdual_float_1d::t_host t_float_1d;
-typedef tdual_float_1d::t_host_const t_float_1d_const;
-typedef tdual_float_1d::t_host_um t_float_1d_um;
-typedef tdual_float_1d::t_host_const_um t_float_1d_const_um;
-typedef tdual_float_1d::t_host_const_randomread t_float_1d_randomread;
+// i-cluster list
+typedef Kokkos::DualView<nbnxn_ci_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_ci_1d;
+typedef tdual_ci_1d::t_host t_ci_1d;
+typedef tdual_ci_1d::t_host_const t_ci_1d_const;
+typedef tdual_ci_1d::t_host_um t_ci_1d_um;
+typedef tdual_ci_1d::t_host_const_um t_ci_1d_const_um;
+typedef tdual_ci_1d::t_host_const_randomread t_ci_1d_randomread;
 
-//2d float array n
-typedef Kokkos::DualView<GMX_FLOAT**, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_float_2d;
-typedef tdual_float_2d::t_host t_float_2d;
-typedef tdual_float_2d::t_host_const t_float_2d_const;
-typedef tdual_float_2d::t_host_um t_float_2d_um;
-typedef tdual_float_2d::t_host_const_um t_float_2d_const_um;
-typedef tdual_float_2d::t_host_const_randomread t_float_2d_randomread;
+// i-super-cluster list
+typedef Kokkos::DualView<nbnxn_sci_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_sci_1d;
+typedef tdual_sci_1d::t_host t_sci_1d;
+typedef tdual_sci_1d::t_host_const t_sci_1d_const;
+typedef tdual_sci_1d::t_host_um t_sci_1d_um;
+typedef tdual_sci_1d::t_host_const_um t_sci_1d_const_um;
+typedef tdual_sci_1d::t_host_const_randomread t_sci_1d_randomread;
 
-//2d float array n*3 
-typedef Kokkos::DualView<GMX_FLOAT*[3], GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_float_1d_3;
-typedef tdual_float_1d_3::t_host t_float_1d_3;
-typedef tdual_float_1d_3::t_host_const t_float_1d_3_const;
-typedef tdual_float_1d_3::t_host_um t_float_1d_3_um;
-typedef tdual_float_1d_3::t_host_const_um t_float_1d_3_const_um;
-typedef tdual_float_1d_3::t_host_const_randomread t_float_1d_3_randomread;
+// j-cluster list
+typedef Kokkos::DualView<nbnxn_cj_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_cj_1d;
+typedef tdual_cj_1d::t_host t_cj_1d;
+typedef tdual_cj_1d::t_host_const t_cj_1d_const;
+typedef tdual_cj_1d::t_host_um t_cj_1d_um;
+typedef tdual_cj_1d::t_host_const_um t_cj_1d_const_um;
+typedef tdual_cj_1d::t_host_const_randomread t_cj_1d_randomread;
 
-//2d float array n*3 
-typedef Kokkos::DualView<GMX_FLOAT*[3], GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_f_array;
-typedef tdual_f_array::t_host t_f_array;
-typedef tdual_f_array::t_host_const t_f_array_const;
-typedef tdual_f_array::t_host_um t_f_array_um;
-typedef tdual_f_array::t_host_const_um t_f_array_const_um;
-typedef tdual_f_array::t_host_const_randomread t_f_array_randomread;
+// 4*j-cluster list
+typedef Kokkos::DualView<nbnxn_cj4_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_cj4_1d;
+typedef tdual_cj4_1d::t_host t_cj4_1d;
+typedef tdual_cj4_1d::t_host_const t_cj4_1d_const;
+typedef tdual_cj4_1d::t_host_um t_cj4_1d_um;
+typedef tdual_cj4_1d::t_host_const_um t_cj4_1d_const_um;
+typedef tdual_cj4_1d::t_host_const_randomread t_cj4_1d_randomread;
 
-//2d float array n*4 
-typedef Kokkos::DualView<GMX_FLOAT*[4], GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_xq_array;
-typedef tdual_xq_array::t_host t_xq_array;
-typedef tdual_xq_array::t_host_const t_xq_array_const;
-typedef tdual_xq_array::t_host_um t_xq_array_um;
-typedef tdual_xq_array::t_host_const_um t_xq_array_const_um;
-typedef tdual_xq_array::t_host_const_randomread t_xq_array_randomread;
-
-// 1d rvec array n
-typedef Kokkos::DualView<rvec*, GMXDeviceType::array_layout, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> tdual_rvec_1d;
-typedef tdual_rvec_1d::t_host t_rvec_1d;
-typedef tdual_rvec_1d::t_host_const t_rvec_1d_const;
-typedef tdual_rvec_1d::t_host_um t_rvec_1d_um;
-typedef tdual_rvec_1d::t_host_const_um t_rvec_1d_const_um;
-typedef tdual_rvec_1d::t_host_const_randomread t_rvec_1d_randomread;
+// Atom interaction bits non-exclusions
+typedef Kokkos::DualView<nbnxn_excl_t*, Kokkos::LayoutRight, GMXDeviceType> tdual_excl_1d;
+typedef tdual_excl_1d::t_host t_excl_1d;
+typedef tdual_excl_1d::t_host_const t_excl_1d_const;
+typedef tdual_excl_1d::t_host_um t_excl_1d_um;
+typedef tdual_excl_1d::t_host_const_um t_excl_1d_const_um;
+typedef tdual_excl_1d::t_host_const_randomread t_excl_1d_randomread;
 
 };
+
 #endif /* KOKKOS_HAVE_CUDA */
 
 //default Gromacs Types

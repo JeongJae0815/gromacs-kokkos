@@ -531,6 +531,11 @@ static void do_nb_verlet(t_forcerec *fr,
             nbnxn_gpu_launch_kernel(fr->nbv->gpu_nbv, nbvg->nbat, flags, ilocality);
             break;
 
+        case nbnxn_Kokkos:
+	  //            nbnxn_kokkos_launch_kernel(fr->nbv, nbvg->nbat, flags, ilocality);
+	  printf("\n Kokkos Kernel launch \n");
+            break;
+
         case nbnxnk8x8x8_PlainC:
             nbnxn_kernel_gpu_ref(nbvg->nbl_lists.nbl[0],
                                  nbvg->nbat, ic,
