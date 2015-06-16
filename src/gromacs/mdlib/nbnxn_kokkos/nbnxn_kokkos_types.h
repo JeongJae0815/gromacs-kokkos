@@ -57,9 +57,9 @@ extern "C" {
 
   struct kokkos_atomdata_t
   {
-    DAT::tdual_real_1d       k_x;         /* kokkos: dual view for x              */
-    DAT::t_real_1d           d_x;         /* kokkos: device view for x            */
-    HAT::t_real_1d           h_x;         /* kokkos: host view for x              */
+    DAT::tdual_real_1d       k_x;         /* dual view for x              */
+    DAT::t_real_1d           d_x;         /* device view for x            */
+    HAT::t_real_1d           h_x;         /* host view for x              */
   };
 
   struct kokkos_pairlist_t

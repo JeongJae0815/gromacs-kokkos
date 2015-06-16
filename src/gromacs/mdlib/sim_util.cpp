@@ -97,6 +97,7 @@
 
 #include "adress.h"
 #include "nbnxn_gpu.h"
+#include "nbnxn_kokkos.h"
 
 void print_time(FILE                     *out,
                 gmx_walltime_accounting_t walltime_accounting,
@@ -532,8 +533,9 @@ static void do_nb_verlet(t_forcerec *fr,
             break;
 
         case nbnxn_Kokkos:
-	  //            nbnxn_kokkos_launch_kernel(fr->nbv, nbvg->nbat, flags, ilocality);
-	  printf("\n Kokkos Kernel launch \n");
+            printf("\n Kokkos Kernel launch \n");
+            nbnxn_kokkos_launch_kernel(nbvg->nbl_lists.nbl[0],
+                                       nbvg->nbat);
             break;
 
         case nbnxnk8x8x8_PlainC:

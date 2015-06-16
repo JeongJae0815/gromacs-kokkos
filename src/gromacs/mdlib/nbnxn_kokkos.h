@@ -43,14 +43,29 @@
  *  \ingroup module_mdlib
  */
 
-#ifndef NBNXN_KOKKOS_KERNEL_H
-#define NBNXN_KOKKOS_KERNEL_H
+#ifndef GMX_MDLIB_NBNXN_KOKKOS_H
+#define GMX_MDLIB_NBNXN_KOKKOS_H
 
 #include <Kokkos_Vectorization.hpp>
 
-#include "nbnxn_kokkos_types.h"
+#include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
+#include "gromacs/legacyheaders/types/simple.h"
+#include "gromacs/mdlib/nbnxn_kokkos_types.h"
 
-struct kokkos_kernel_functor;
-real kokkos_launch_kernel ();
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+    struct nbnxn_pairlist_t;
+    struct nbnxn_atomdata_t;
+
+KOKKOS_FUNC_QUALIFIER
+real nbnxn_kokkos_launch_kernel (struct nbnxn_pairlist_t gmx_unused    *nbl,
+                                 struct nbnxn_atomdata_t gmx_unused    *nbat) KOKKOS_FUNC_TERM
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif

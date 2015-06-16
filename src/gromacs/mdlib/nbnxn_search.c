@@ -234,20 +234,20 @@ static int nbnxn_kernel_to_ci_size(int nb_kernel_type)
 {
     switch (nb_kernel_type)
     {
-        case nbnxnk4x4_PlainC:
-        case nbnxnk4xN_SIMD_4xN:
-        case nbnxnk4xN_SIMD_2xNN:
-            return NBNXN_CPU_CLUSTER_I_SIZE;
-        case nbnxnk8x8x8_GPU:
-        case nbnxn_Kokkos:
-        case nbnxnk8x8x8_PlainC:
-            /* The cluster size for super/sub lists is only set here.
-             * Any value should work for the pair-search and atomdata code.
-             * The kernels, of course, might require a particular value.
-             */
-            return NBNXN_GPU_CLUSTER_SIZE;
-        default:
-            gmx_incons("unknown kernel type");
+    case nbnxnk4x4_PlainC:
+    case nbnxnk4xN_SIMD_4xN:
+    case nbnxnk4xN_SIMD_2xNN:
+    case nbnxn_Kokkos:
+        return NBNXN_CPU_CLUSTER_I_SIZE;
+    case nbnxnk8x8x8_GPU:
+    case nbnxnk8x8x8_PlainC:
+        /* The cluster size for super/sub lists is only set here.
+         * Any value should work for the pair-search and atomdata code.
+         * The kernels, of course, might require a particular value.
+         */
+        return NBNXN_GPU_CLUSTER_SIZE;
+    default:
+        gmx_incons("unknown kernel type");
     }
 
     return 0;
@@ -264,22 +264,22 @@ int nbnxn_kernel_to_cj_size(int nb_kernel_type)
 
     switch (nb_kernel_type)
     {
-        case nbnxnk4x4_PlainC:
-            cj_size = NBNXN_CPU_CLUSTER_I_SIZE;
-            break;
-        case nbnxnk4xN_SIMD_4xN:
-            cj_size = nbnxn_simd_width;
-            break;
-        case nbnxnk4xN_SIMD_2xNN:
-            cj_size = nbnxn_simd_width/2;
-            break;
-        case nbnxnk8x8x8_GPU:
-        case nbnxn_Kokkos:
-        case nbnxnk8x8x8_PlainC:
-            cj_size = nbnxn_kernel_to_ci_size(nb_kernel_type);
-            break;
-        default:
-            gmx_incons("unknown kernel type");
+    case nbnxnk4x4_PlainC:
+    case nbnxn_Kokkos:
+        cj_size = NBNXN_CPU_CLUSTER_I_SIZE;
+        break;
+    case nbnxnk4xN_SIMD_4xN:
+        cj_size = nbnxn_simd_width;
+        break;
+    case nbnxnk4xN_SIMD_2xNN:
+        cj_size = nbnxn_simd_width/2;
+        break;
+    case nbnxnk8x8x8_GPU:
+    case nbnxnk8x8x8_PlainC:
+        cj_size = nbnxn_kernel_to_ci_size(nb_kernel_type);
+        break;
+    default:
+        gmx_incons("unknown kernel type");
     }
 
     return cj_size;
@@ -289,9 +289,9 @@ static int ci_to_cj(int na_cj_2log, int ci)
 {
     switch (na_cj_2log)
     {
-        case 2: return ci;     break;
-        case 1: return (ci<<1); break;
-        case 3: return (ci>>1); break;
+    case 2: return ci;     break;
+    case 1: return (ci<<1); break;
+    case 3: return (ci>>1); break;
     }
 
     return 0;
@@ -306,19 +306,19 @@ gmx_bool nbnxn_kernel_pairlist_simple(int nb_kernel_type)
 
     switch (nb_kernel_type)
     {
-        case nbnxnk8x8x8_GPU:
-        case nbnxn_Kokkos:	  
-        case nbnxnk8x8x8_PlainC:
-            return FALSE;
+    case nbnxnk8x8x8_GPU:
+    case nbnxnk8x8x8_PlainC:
+        return FALSE;
 
-        case nbnxnk4x4_PlainC:
-        case nbnxnk4xN_SIMD_4xN:
-        case nbnxnk4xN_SIMD_2xNN:
-            return TRUE;
+    case nbnxnk4x4_PlainC:
+    case nbnxnk4xN_SIMD_4xN:
+    case nbnxnk4xN_SIMD_2xNN:
+    case nbnxn_Kokkos:	  
+        return TRUE;
 
-        default:
-            gmx_incons("Invalid nonbonded kernel type passed!");
-            return FALSE;
+    default:
+        gmx_incons("Invalid nonbonded kernel type passed!");
+        return FALSE;
     }
 }
 
@@ -1213,8 +1213,8 @@ void fill_cell(const nbnxn_search_t nbs,
 
 #ifdef GMX_KOKKOS
     copy_rvec_to_nbat_real_kokkos(nbs->a+a0, a1-a0, grid->na_c, x,
-				  nbat->XFormat, nbat, a0,
-				  sx, sy, sz);
+                                  nbat->XFormat, nbat, a0,
+                                  sx, sy, sz);
 #else
     copy_rvec_to_nbat_real(nbs->a+a0, a1-a0, grid->na_c, x,
                            nbat->XFormat, nbat->x, a0,
@@ -1886,14 +1886,14 @@ void nbnxn_put_on_grid(nbnxn_search_t nbs,
     /* We need padding up to a multiple of the buffer flag size: simply add */
     if (nc_max*grid->na_sc + NBNXN_BUFFERFLAG_SIZE > nbat->nalloc)
     {
-      if(nb_kernel_type==nbnxn_Kokkos)
-	{
-	  nbnxn_atomdata_realloc_kokkos(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
-	}
-      else
-	{
-	  nbnxn_atomdata_realloc(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
-	}
+        if(nb_kernel_type==nbnxn_Kokkos)
+        {
+            nbnxn_atomdata_realloc_kokkos(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
+        }
+        else
+        {
+            nbnxn_atomdata_realloc(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
+        }
     }
 
     calc_cell_indices(nbs, dd_zone, grid, a0, a1, atinfo, x, move, nbat);
@@ -1994,21 +1994,21 @@ void nbnxn_grid_add_simple(nbnxn_search_t    nbs,
             {
                 switch (nbat->XFormat)
                 {
-                    case nbatX4:
-                        /* PACK_X4==NBNXN_CPU_CLUSTER_I_SIZE, so this is simple */
-                        calc_bounding_box_x_x4(na, nbat->x+tx*STRIDE_P4,
-                                               bb+tx);
-                        break;
-                    case nbatX8:
-                        /* PACK_X8>NBNXN_CPU_CLUSTER_I_SIZE, more complicated */
-                        calc_bounding_box_x_x8(na, nbat->x+X8_IND_A(tx*NBNXN_CPU_CLUSTER_I_SIZE),
-                                               bb+tx);
-                        break;
-                    default:
-                        calc_bounding_box(na, nbat->xstride,
-                                          nbat->x+tx*NBNXN_CPU_CLUSTER_I_SIZE*nbat->xstride,
-                                          bb+tx);
-                        break;
+                case nbatX4:
+                    /* PACK_X4==NBNXN_CPU_CLUSTER_I_SIZE, so this is simple */
+                    calc_bounding_box_x_x4(na, nbat->x+tx*STRIDE_P4,
+                                           bb+tx);
+                    break;
+                case nbatX8:
+                    /* PACK_X8>NBNXN_CPU_CLUSTER_I_SIZE, more complicated */
+                    calc_bounding_box_x_x8(na, nbat->x+X8_IND_A(tx*NBNXN_CPU_CLUSTER_I_SIZE),
+                                           bb+tx);
+                    break;
+                default:
+                    calc_bounding_box(na, nbat->xstride,
+                                      nbat->x+tx*NBNXN_CPU_CLUSTER_I_SIZE*nbat->xstride,
+                                      bb+tx);
+                    break;
                 }
                 bbcz[tx*NNBSBB_D+0] = bb[tx].lower[BB_Z];
                 bbcz[tx*NNBSBB_D+1] = bb[tx].upper[BB_Z];
@@ -2187,52 +2187,52 @@ static float subc_bb_dist2_simd4(int si, const nbnxn_bb_t *bb_i_ci,
 }
 
 /* Calculate bb bounding distances of bb_i[si,...,si+3] and store them in d2 */
-#define SUBC_BB_DIST2_SIMD4_XXXX_INNER(si, bb_i, d2) \
-    {                                                \
-        int               shi;                                  \
-                                                 \
-        gmx_simd4_float_t dx_0, dy_0, dz_0;                    \
-        gmx_simd4_float_t dx_1, dy_1, dz_1;                    \
-                                                 \
-        gmx_simd4_float_t mx, my, mz;                          \
-        gmx_simd4_float_t m0x, m0y, m0z;                       \
-                                                 \
-        gmx_simd4_float_t d2x, d2y, d2z;                       \
-        gmx_simd4_float_t d2s, d2t;                            \
-                                                 \
-        shi = si*NNBSBB_D*DIM;                       \
-                                                 \
-        xi_l = gmx_simd4_load_f(bb_i+shi+0*STRIDE_PBB);   \
-        yi_l = gmx_simd4_load_f(bb_i+shi+1*STRIDE_PBB);   \
-        zi_l = gmx_simd4_load_f(bb_i+shi+2*STRIDE_PBB);   \
-        xi_h = gmx_simd4_load_f(bb_i+shi+3*STRIDE_PBB);   \
-        yi_h = gmx_simd4_load_f(bb_i+shi+4*STRIDE_PBB);   \
-        zi_h = gmx_simd4_load_f(bb_i+shi+5*STRIDE_PBB);   \
-                                                 \
-        dx_0 = gmx_simd4_sub_f(xi_l, xj_h);                 \
-        dy_0 = gmx_simd4_sub_f(yi_l, yj_h);                 \
-        dz_0 = gmx_simd4_sub_f(zi_l, zj_h);                 \
-                                                 \
-        dx_1 = gmx_simd4_sub_f(xj_l, xi_h);                 \
-        dy_1 = gmx_simd4_sub_f(yj_l, yi_h);                 \
-        dz_1 = gmx_simd4_sub_f(zj_l, zi_h);                 \
-                                                 \
-        mx   = gmx_simd4_max_f(dx_0, dx_1);                 \
-        my   = gmx_simd4_max_f(dy_0, dy_1);                 \
-        mz   = gmx_simd4_max_f(dz_0, dz_1);                 \
-                                                 \
-        m0x  = gmx_simd4_max_f(mx, zero);                   \
-        m0y  = gmx_simd4_max_f(my, zero);                   \
-        m0z  = gmx_simd4_max_f(mz, zero);                   \
-                                                 \
-        d2x  = gmx_simd4_mul_f(m0x, m0x);                   \
-        d2y  = gmx_simd4_mul_f(m0y, m0y);                   \
-        d2z  = gmx_simd4_mul_f(m0z, m0z);                   \
-                                                 \
-        d2s  = gmx_simd4_add_f(d2x, d2y);                   \
-        d2t  = gmx_simd4_add_f(d2s, d2z);                   \
-                                                 \
-        gmx_simd4_store_f(d2+si, d2t);                      \
+#define SUBC_BB_DIST2_SIMD4_XXXX_INNER(si, bb_i, d2)    \
+    {                                                   \
+        int               shi;                          \
+                                                        \
+        gmx_simd4_float_t dx_0, dy_0, dz_0;             \
+        gmx_simd4_float_t dx_1, dy_1, dz_1;             \
+                                                        \
+        gmx_simd4_float_t mx, my, mz;                   \
+        gmx_simd4_float_t m0x, m0y, m0z;                \
+                                                        \
+        gmx_simd4_float_t d2x, d2y, d2z;                \
+        gmx_simd4_float_t d2s, d2t;                     \
+                                                        \
+        shi = si*NNBSBB_D*DIM;                          \
+                                                        \
+        xi_l = gmx_simd4_load_f(bb_i+shi+0*STRIDE_PBB); \
+        yi_l = gmx_simd4_load_f(bb_i+shi+1*STRIDE_PBB); \
+        zi_l = gmx_simd4_load_f(bb_i+shi+2*STRIDE_PBB); \
+        xi_h = gmx_simd4_load_f(bb_i+shi+3*STRIDE_PBB); \
+        yi_h = gmx_simd4_load_f(bb_i+shi+4*STRIDE_PBB); \
+        zi_h = gmx_simd4_load_f(bb_i+shi+5*STRIDE_PBB); \
+                                                        \
+        dx_0 = gmx_simd4_sub_f(xi_l, xj_h);             \
+        dy_0 = gmx_simd4_sub_f(yi_l, yj_h);             \
+        dz_0 = gmx_simd4_sub_f(zi_l, zj_h);             \
+                                                        \
+        dx_1 = gmx_simd4_sub_f(xj_l, xi_h);             \
+        dy_1 = gmx_simd4_sub_f(yj_l, yi_h);             \
+        dz_1 = gmx_simd4_sub_f(zj_l, zi_h);             \
+                                                        \
+        mx   = gmx_simd4_max_f(dx_0, dx_1);             \
+        my   = gmx_simd4_max_f(dy_0, dy_1);             \
+        mz   = gmx_simd4_max_f(dz_0, dz_1);             \
+                                                        \
+        m0x  = gmx_simd4_max_f(mx, zero);               \
+        m0y  = gmx_simd4_max_f(my, zero);               \
+        m0z  = gmx_simd4_max_f(mz, zero);               \
+                                                        \
+        d2x  = gmx_simd4_mul_f(m0x, m0x);               \
+        d2y  = gmx_simd4_mul_f(m0y, m0y);               \
+        d2z  = gmx_simd4_mul_f(m0z, m0z);               \
+                                                        \
+        d2s  = gmx_simd4_add_f(d2x, d2y);               \
+        d2t  = gmx_simd4_add_f(d2s, d2z);               \
+                                                        \
+        gmx_simd4_store_f(d2+si, d2t);                  \
     }
 
 /* 4-wide SIMD code for nsi bb distances for bb format xxxxyyyyzzzz */
@@ -3067,23 +3067,23 @@ static void make_cluster_list_supersub(const nbnxn_grid_t *gridi,
 #else
                  subc_in_range_x
 #endif
-                     (na_c, ci, x_ci, cj_gl, stride, x, rl2)))
+                 (na_c, ci, x_ci, cj_gl, stride, x, rl2)))
 #else
-            /* Check if the distance between the two bounding boxes
-             * in within the pair-list cut-off.
-             */
-            if (d2 < rl2)
+                /* Check if the distance between the two bounding boxes
+                 * in within the pair-list cut-off.
+                 */
+                if (d2 < rl2)
 #endif
-            {
-                /* Flag this i-subcell to be taken into account */
-                imask |= (1U << (cj_offset*GPU_NSUBCELL+ci));
+                {
+                    /* Flag this i-subcell to be taken into account */
+                    imask |= (1U << (cj_offset*GPU_NSUBCELL+ci));
 
 #ifdef PRUNE_LIST_CPU_ONE
-                ci_last = ci;
+                    ci_last = ci;
 #endif
 
-                npair++;
-            }
+                    npair++;
+                }
         }
 
 #ifdef PRUNE_LIST_CPU_ONE
@@ -3099,7 +3099,7 @@ static void make_cluster_list_supersub(const nbnxn_grid_t *gridi,
 #else
                 !subc_in_range_x
 #endif
-                    (na_c, ci_last, x_ci, cj_gl, stride, x, rl2))
+                (na_c, ci_last, x_ci, cj_gl, stride, x, rl2))
             {
                 imask &= ~(1U << (cj_offset*GPU_NSUBCELL+ci_last));
                 npair--;
@@ -5144,15 +5144,15 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
 #ifndef NBNXN_SHIFT_BACKWARD
                     if (cxf < ci_x)
 #else
-                    if (shift == CENTRAL && gridi == gridj &&
-                        cxf < ci_x)
+                        if (shift == CENTRAL && gridi == gridj &&
+                            cxf < ci_x)
 #endif
-                    {
-                        /* Leave the pairs with i > j.
-                         * x is the major index, so skip half of it.
-                         */
-                        cxf = ci_x;
-                    }
+                        {
+                            /* Leave the pairs with i > j.
+                             * x is the major index, so skip half of it.
+                             */
+                            cxf = ci_x;
+                        }
 
                     if (nbl->bSimple)
                     {
@@ -5190,19 +5190,19 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
                         if (gridi == gridj &&
                             cx == 0 && cyf < ci_y)
 #else
-                        if (gridi == gridj &&
-                            cx == 0 && shift == CENTRAL && cyf < ci_y)
+                            if (gridi == gridj &&
+                                cx == 0 && shift == CENTRAL && cyf < ci_y)
 #endif
-                        {
-                            /* Leave the pairs with i > j.
-                             * Skip half of y when i and j have the same x.
-                             */
-                            cyf_x = ci_y;
-                        }
-                        else
-                        {
-                            cyf_x = cyf;
-                        }
+                            {
+                                /* Leave the pairs with i > j.
+                                 * Skip half of y when i and j have the same x.
+                                 */
+                                cyf_x = ci_y;
+                            }
+                            else
+                            {
+                                cyf_x = cyf;
+                            }
 
                         for (cy = cyf_x; cy <= cyl; cy++)
                         {
@@ -5303,51 +5303,51 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
 
                                     switch (nb_kernel_type)
                                     {
-                                        case nbnxnk4x4_PlainC:
-                                            check_subcell_list_space_simple(nbl, cl-cf+1);
+                                    case nbnxnk4x4_PlainC:
+                                        check_subcell_list_space_simple(nbl, cl-cf+1);
 
-                                            make_cluster_list_simple(gridj,
-                                                                     nbl, ci, cf, cl,
-                                                                     (gridi == gridj && shift == CENTRAL),
-                                                                     nbat->x,
-                                                                     rl2, rbb2,
-                                                                     &ndistc);
-                                            break;
+                                        make_cluster_list_simple(gridj,
+                                                                 nbl, ci, cf, cl,
+                                                                 (gridi == gridj && shift == CENTRAL),
+                                                                 nbat->x,
+                                                                 rl2, rbb2,
+                                                                 &ndistc);
+                                        break;
 #ifdef GMX_NBNXN_SIMD_4XN
-                                        case nbnxnk4xN_SIMD_4xN:
-                                            check_subcell_list_space_simple(nbl, ci_to_cj(na_cj_2log, cl-cf)+2);
-                                            make_cluster_list_simd_4xn(gridj,
-                                                                       nbl, ci, cf, cl,
-                                                                       (gridi == gridj && shift == CENTRAL),
-                                                                       nbat->x,
-                                                                       rl2, rbb2,
-                                                                       &ndistc);
-                                            break;
+                                    case nbnxnk4xN_SIMD_4xN:
+                                        check_subcell_list_space_simple(nbl, ci_to_cj(na_cj_2log, cl-cf)+2);
+                                        make_cluster_list_simd_4xn(gridj,
+                                                                   nbl, ci, cf, cl,
+                                                                   (gridi == gridj && shift == CENTRAL),
+                                                                   nbat->x,
+                                                                   rl2, rbb2,
+                                                                   &ndistc);
+                                        break;
 #endif
 #ifdef GMX_NBNXN_SIMD_2XNN
-                                        case nbnxnk4xN_SIMD_2xNN:
-                                            check_subcell_list_space_simple(nbl, ci_to_cj(na_cj_2log, cl-cf)+2);
-                                            make_cluster_list_simd_2xnn(gridj,
-                                                                        nbl, ci, cf, cl,
-                                                                        (gridi == gridj && shift == CENTRAL),
-                                                                        nbat->x,
-                                                                        rl2, rbb2,
-                                                                        &ndistc);
-                                            break;
+                                    case nbnxnk4xN_SIMD_2xNN:
+                                        check_subcell_list_space_simple(nbl, ci_to_cj(na_cj_2log, cl-cf)+2);
+                                        make_cluster_list_simd_2xnn(gridj,
+                                                                    nbl, ci, cf, cl,
+                                                                    (gridi == gridj && shift == CENTRAL),
+                                                                    nbat->x,
+                                                                    rl2, rbb2,
+                                                                    &ndistc);
+                                        break;
 #endif
-                                        case nbnxnk8x8x8_PlainC:
-                                        case nbnxnk8x8x8_GPU:
-                                            check_subcell_list_space_supersub(nbl, cl-cf+1);
-                                            for (cj = cf; cj <= cl; cj++)
-                                            {
-                                                make_cluster_list_supersub(gridi, gridj,
-                                                                           nbl, ci, cj,
-                                                                           (gridi == gridj && shift == CENTRAL && ci == cj),
-                                                                           nbat->xstride, nbat->x,
-                                                                           rl2, rbb2,
-                                                                           &ndistc);
-                                            }
-                                            break;
+                                    case nbnxnk8x8x8_PlainC:
+                                    case nbnxnk8x8x8_GPU:
+                                        check_subcell_list_space_supersub(nbl, cl-cf+1);
+                                        for (cj = cf; cj <= cl; cj++)
+                                        {
+                                            make_cluster_list_supersub(gridi, gridj,
+                                                                       nbl, ci, cj,
+                                                                       (gridi == gridj && shift == CENTRAL && ci == cj),
+                                                                       nbat->xstride, nbat->x,
+                                                                       rl2, rbb2,
+                                                                       &ndistc);
+                                        }
+                                        break;
                                     }
                                     ncpcheck += cl - cf + 1;
 
@@ -5642,18 +5642,18 @@ void nbnxn_make_pairlist(const nbnxn_search_t  nbs,
         switch (nb_kernel_type)
         {
 #ifdef GMX_NBNXN_SIMD_4XN
-            case nbnxnk4xN_SIMD_4xN:
-                nbs->icell_set_x = icell_set_x_simd_4xn;
-                break;
+        case nbnxnk4xN_SIMD_4xN:
+            nbs->icell_set_x = icell_set_x_simd_4xn;
+            break;
 #endif
 #ifdef GMX_NBNXN_SIMD_2XNN
-            case nbnxnk4xN_SIMD_2xNN:
-                nbs->icell_set_x = icell_set_x_simd_2xnn;
-                break;
+        case nbnxnk4xN_SIMD_2xNN:
+            nbs->icell_set_x = icell_set_x_simd_2xnn;
+            break;
 #endif
-            default:
-                nbs->icell_set_x = icell_set_x_simple;
-                break;
+        default:
+            nbs->icell_set_x = icell_set_x_simple;
+            break;
         }
     }
     else
