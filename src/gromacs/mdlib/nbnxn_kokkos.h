@@ -46,8 +46,6 @@
 #ifndef GMX_MDLIB_NBNXN_KOKKOS_H
 #define GMX_MDLIB_NBNXN_KOKKOS_H
 
-#include <Kokkos_Vectorization.hpp>
-
 #include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
 #include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/mdlib/nbnxn_kokkos_types.h"
@@ -61,7 +59,7 @@ extern "C" {
 
 KOKKOS_FUNC_QUALIFIER
 real nbnxn_kokkos_launch_kernel (struct nbnxn_pairlist_t gmx_unused    *nbl,
-                                 struct nbnxn_atomdata_t gmx_unused    *nbat) KOKKOS_FUNC_TERM
+                                 struct nbnxn_atomdata_t gmx_unused    *nbat) KOKKOS_FUNC_TERM_WITH_RETURN(-1)
 
 #ifdef __cplusplus
 }
