@@ -5134,7 +5134,14 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
 
                     if (nbl->bSimple)
                     {
-                        new_ci_entry(nbl, cell0_i+ci, shift, flags_i[ci]);
+                        if (nb_kernel_type == nbnxn_Kokkos)
+                        {
+                            new_ci_entry_kokkos(nbl, cell0_i+ci, shift, flags_i[ci]);
+                        }
+                        else
+                        {
+                            new_ci_entry(nbl, cell0_i+ci, shift, flags_i[ci]);
+                        }
                     }
                     else
                     {
@@ -5305,7 +5312,16 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
                                     {
                                     case nbnxnk4x4_PlainC:
                                         check_subcell_list_space_simple(nbl, cl-cf+1);
+                                        make_cluster_list_simple(gridj,
+                                                                 nbl, ci, cf, cl,
+                                                                 (gridi == gridj && shift == CENTRAL),
+                                                                 nbat->x,
+                                                                 rl2, rbb2,
+                                                                 &ndistc);
+                                        break;
 
+                                    case nbnxn_Kokkos:
+                                        check_subcell_list_space_simple_kokkos(nbl, cl-cf+1);
                                         make_cluster_list_simple(gridj,
                                                                  nbl, ci, cf, cl,
                                                                  (gridi == gridj && shift == CENTRAL),

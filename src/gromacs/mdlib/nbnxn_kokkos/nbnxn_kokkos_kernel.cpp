@@ -96,7 +96,7 @@ struct nbnxn_kokkos_kernel_functor
     KOKKOS_FUNCTION
     real compute_item(const typename Kokkos::TeamPolicy<device_type>::member_type& dev) const
     {
-
+        return 0.0;
     }
 
     KOKKOS_INLINE_FUNCTION
@@ -105,9 +105,11 @@ struct nbnxn_kokkos_kernel_functor
         //   compute_item(dev);
         // index for i cluster assiged to this team
         int my_ci = dev.league_rank();
+        int my_cj = dev.league_rank() * dev.team_size() + dev.team_rank();
 
-        printf("my i cluster %d\n", my_ci);
-        printf("my team size %d\n",dev.team_size());
+        printf("My team id: %d\n",my_ci);
+        printf("My thread id: %d\n",my_cj);
+
         // load M coord+params for ci
         
         // for each cj cluster
@@ -122,7 +124,7 @@ struct nbnxn_kokkos_kernel_functor
 
 };
 
-real nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
+void nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
                                  nbnxn_atomdata_t     *nbat)
 {
 
@@ -145,7 +147,6 @@ real nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
     const int teamsize = nbl->na_ci;
     Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize);
 
-
     printf("\n number of i clusters %d\n", nteams);
     printf("\n number of atoms in a cluster %d\n", teamsize);
 
@@ -155,6 +156,7 @@ real nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
     // transfer data from device to device
     // transfer happens only if the data on the device is modified, mainly forces
     kokkos_sync_d2h(nbat->kk_nbat, nbl->kk_plist);
+    
 }
 
 #endif

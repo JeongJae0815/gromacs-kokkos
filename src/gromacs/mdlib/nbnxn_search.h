@@ -36,6 +36,7 @@
 #ifndef _nbnxn_search_h
 #define _nbnxn_search_h
 
+#include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
 #include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
 
@@ -113,6 +114,33 @@ void nbnxn_init_pairlist_set(nbnxn_pairlist_set_t *nbl_list,
                              gmx_bool simple, gmx_bool combined,
                              nbnxn_alloc_t *alloc,
                              nbnxn_free_t  *free);
+
+/* Initializes a set of pair lists with Kokkos views */
+KOKKOS_FUNC_QUALIFIER
+void nbnxn_init_pairlist_set_kokkos(nbnxn_pairlist_set_t *nbl_list,
+                                    gmx_bool bSimple, gmx_bool bCombined,
+                                    nbnxn_alloc_t *alloc,
+                                    nbnxn_free_t  *free) KOKKOS_FUNC_TERM
+
+/* Deallocates a set of pair lists with Kokkos views */
+KOKKOS_FUNC_QUALIFIER
+void nbnxn_destroy_pairlist_set_kokkos(nbnxn_pairlist_set_t *nbl_list,
+                                       gmx_bool bSimple, gmx_bool bCombined,
+                                       nbnxn_alloc_t *alloc,
+                                       nbnxn_free_t  *free) KOKKOS_FUNC_TERM
+
+/* Allocate new ci entry with Kokkos views */
+KOKKOS_FUNC_QUALIFIER
+void new_ci_entry_kokkos(nbnxn_pairlist_t *nbl, int ci, int shift, int flags) KOKKOS_FUNC_TERM
+
+/* Ensures there is enough space for ncell extra j-cells in the list with Kokkos views*/
+KOKKOS_FUNC_QUALIFIER
+void check_subcell_list_space_simple_kokkos(nbnxn_pairlist_t *nbl,
+                                            int               ncell) KOKKOS_FUNC_TERM
+
+/* Kokkos: copy pairlist from host to device views*/
+KOKKOS_FUNC_QUALIFIER
+void nbnxn_kokkos_sync_pairlist(nbnxn_pairlist_set_t *nbl_list) KOKKOS_FUNC_TERM
 
 /* Make a apir-list with radius rlist, store it in nbl.
  * The parameter min_ci_balanced sets the minimum required

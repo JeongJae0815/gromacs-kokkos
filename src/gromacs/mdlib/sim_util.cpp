@@ -488,72 +488,72 @@ static void do_nb_verlet(t_forcerec *fr,
     }
     switch (nbvg->kernel_type)
     {
-        case nbnxnk4x4_PlainC:
-            nbnxn_kernel_ref(&nbvg->nbl_lists,
+    case nbnxnk4x4_PlainC:
+        nbnxn_kernel_ref(&nbvg->nbl_lists,
+                         nbvg->nbat, ic,
+                         fr->shift_vec,
+                         flags,
+                         clearF,
+                         fr->fshift[0],
+                         enerd->grpp.ener[egCOULSR],
+                         fr->bBHAM ?
+                         enerd->grpp.ener[egBHAMSR] :
+                         enerd->grpp.ener[egLJSR]);
+        break;
+
+    case nbnxnk4xN_SIMD_4xN:
+        nbnxn_kernel_simd_4xn(&nbvg->nbl_lists,
+                              nbvg->nbat, ic,
+                              nbvg->ewald_excl,
+                              fr->shift_vec,
+                              flags,
+                              clearF,
+                              fr->fshift[0],
+                              enerd->grpp.ener[egCOULSR],
+                              fr->bBHAM ?
+                              enerd->grpp.ener[egBHAMSR] :
+                              enerd->grpp.ener[egLJSR]);
+        break;
+    case nbnxnk4xN_SIMD_2xNN:
+        nbnxn_kernel_simd_2xnn(&nbvg->nbl_lists,
+                               nbvg->nbat, ic,
+                               nbvg->ewald_excl,
+                               fr->shift_vec,
+                               flags,
+                               clearF,
+                               fr->fshift[0],
+                               enerd->grpp.ener[egCOULSR],
+                               fr->bBHAM ?
+                               enerd->grpp.ener[egBHAMSR] :
+                               enerd->grpp.ener[egLJSR]);
+        break;
+
+    case nbnxnk8x8x8_GPU:
+        nbnxn_gpu_launch_kernel(fr->nbv->gpu_nbv, nbvg->nbat, flags, ilocality);
+        break;
+
+    case nbnxn_Kokkos:
+        printf("\n Kokkos Kernel launch \n");
+        nbnxn_kokkos_launch_kernel(nbvg->nbl_lists.nbl[0],
+                                   nbvg->nbat);
+        break;
+
+    case nbnxnk8x8x8_PlainC:
+        nbnxn_kernel_gpu_ref(nbvg->nbl_lists.nbl[0],
                              nbvg->nbat, ic,
                              fr->shift_vec,
                              flags,
                              clearF,
+                             nbvg->nbat->out[0].f,
                              fr->fshift[0],
                              enerd->grpp.ener[egCOULSR],
                              fr->bBHAM ?
                              enerd->grpp.ener[egBHAMSR] :
                              enerd->grpp.ener[egLJSR]);
-            break;
+        break;
 
-        case nbnxnk4xN_SIMD_4xN:
-            nbnxn_kernel_simd_4xn(&nbvg->nbl_lists,
-                                  nbvg->nbat, ic,
-                                  nbvg->ewald_excl,
-                                  fr->shift_vec,
-                                  flags,
-                                  clearF,
-                                  fr->fshift[0],
-                                  enerd->grpp.ener[egCOULSR],
-                                  fr->bBHAM ?
-                                  enerd->grpp.ener[egBHAMSR] :
-                                  enerd->grpp.ener[egLJSR]);
-            break;
-        case nbnxnk4xN_SIMD_2xNN:
-            nbnxn_kernel_simd_2xnn(&nbvg->nbl_lists,
-                                   nbvg->nbat, ic,
-                                   nbvg->ewald_excl,
-                                   fr->shift_vec,
-                                   flags,
-                                   clearF,
-                                   fr->fshift[0],
-                                   enerd->grpp.ener[egCOULSR],
-                                   fr->bBHAM ?
-                                   enerd->grpp.ener[egBHAMSR] :
-                                   enerd->grpp.ener[egLJSR]);
-            break;
-
-        case nbnxnk8x8x8_GPU:
-            nbnxn_gpu_launch_kernel(fr->nbv->gpu_nbv, nbvg->nbat, flags, ilocality);
-            break;
-
-        case nbnxn_Kokkos:
-            printf("\n Kokkos Kernel launch \n");
-            nbnxn_kokkos_launch_kernel(nbvg->nbl_lists.nbl[0],
-                                       nbvg->nbat);
-            break;
-
-        case nbnxnk8x8x8_PlainC:
-            nbnxn_kernel_gpu_ref(nbvg->nbl_lists.nbl[0],
-                                 nbvg->nbat, ic,
-                                 fr->shift_vec,
-                                 flags,
-                                 clearF,
-                                 nbvg->nbat->out[0].f,
-                                 fr->fshift[0],
-                                 enerd->grpp.ener[egCOULSR],
-                                 fr->bBHAM ?
-                                 enerd->grpp.ener[egBHAMSR] :
-                                 enerd->grpp.ener[egLJSR]);
-            break;
-
-        default:
-            gmx_incons("Invalid nonbonded kernel type passed!");
+    default:
+        gmx_incons("Invalid nonbonded kernel type passed!");
 
     }
     if (!bUsingGpuKernels)
@@ -903,33 +903,33 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         if (nbv->ngrp == 1 ||
             nbv->grp[eintNonlocal].nbat == nbv->grp[eintLocal].nbat)
         {
-	  if (bUseKokkos)
-	    {
-	      nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatAll,
-					nbv->nbs, mdatoms, fr->cginfo);
-	    }
-	  else
-	    {
-	      nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatAll,
-				 nbv->nbs, mdatoms, fr->cginfo);
-	    }
+            if (bUseKokkos)
+            {
+                nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatAll,
+                                          nbv->nbs, mdatoms, fr->cginfo);
+            }
+            else
+            {
+                nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatAll,
+                                   nbv->nbs, mdatoms, fr->cginfo);
+            }
         }
         else
         {
-	  if( bUseKokkos)
-	    {
-            nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatLocal,
-				      nbv->nbs, mdatoms, fr->cginfo);
-            nbnxn_atomdata_set_kokkos(nbv->grp[eintNonlocal].nbat, eatAll,
-				      nbv->nbs, mdatoms, fr->cginfo);
-	    }
-	  else
-	    {
-            nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatLocal,
-                               nbv->nbs, mdatoms, fr->cginfo);
-            nbnxn_atomdata_set(nbv->grp[eintNonlocal].nbat, eatAll,
-                               nbv->nbs, mdatoms, fr->cginfo);
-	    }
+            if( bUseKokkos)
+            {
+                nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatLocal,
+                                          nbv->nbs, mdatoms, fr->cginfo);
+                nbnxn_atomdata_set_kokkos(nbv->grp[eintNonlocal].nbat, eatAll,
+                                          nbv->nbs, mdatoms, fr->cginfo);
+            }
+            else
+            {
+                nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatLocal,
+                                   nbv->nbs, mdatoms, fr->cginfo);
+                nbnxn_atomdata_set(nbv->grp[eintNonlocal].nbat, eatAll,
+                                   nbv->nbs, mdatoms, fr->cginfo);
+            }
         }
         wallcycle_stop(wcycle, ewcNS);
     }
@@ -954,6 +954,7 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
     {
         wallcycle_start_nocount(wcycle, ewcNS);
         wallcycle_sub_start(wcycle, ewcsNBS_SEARCH_LOCAL);
+
         nbnxn_make_pairlist(nbv->nbs, nbv->grp[eintLocal].nbat,
                             &top->excls,
                             ic->rlist,
@@ -971,6 +972,12 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
                                     nbv->grp[eintLocal].nbl_lists.nbl[0],
                                     eintLocal);
         }
+
+        if (bUseKokkos)
+        {
+            /* sync pair-list kokkos views */
+            nbnxn_kokkos_sync_pairlist(&nbv->grp[eintLocal].nbl_lists);
+        }
         wallcycle_stop(wcycle, ewcNS);
     }
     else
@@ -978,8 +985,8 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         wallcycle_start(wcycle, ewcNB_XF_BUF_OPS);
         wallcycle_sub_start(wcycle, ewcsNB_X_BUF_OPS);
 
-	nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, FALSE, x,
-					nbv->grp[eintLocal].nbat);
+        nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, FALSE, x,
+                                        nbv->grp[eintLocal].nbat);
 
         wallcycle_sub_stop(wcycle, ewcsNB_X_BUF_OPS);
         wallcycle_stop(wcycle, ewcNB_XF_BUF_OPS);
@@ -1011,8 +1018,8 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
             wallcycle_start(wcycle, ewcNB_XF_BUF_OPS);
             wallcycle_sub_start(wcycle, ewcsNB_X_BUF_OPS);
 
-	    nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, TRUE, x,
-					    nbv->grp[eintNonlocal].nbat);
+            nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatLocal, TRUE, x,
+                                            nbv->grp[eintNonlocal].nbat);
 
             wallcycle_sub_stop(wcycle, ewcsNB_X_BUF_OPS);
             wallcycle_stop(wcycle, ewcNB_XF_BUF_OPS);
@@ -1063,8 +1070,8 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
             wallcycle_start(wcycle, ewcNB_XF_BUF_OPS);
             wallcycle_sub_start(wcycle, ewcsNB_X_BUF_OPS);
 
-	    nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatNonlocal, FALSE, x,
-					    nbv->grp[eintNonlocal].nbat);
+            nbnxn_atomdata_copy_x_to_nbat_x(nbv->nbs, eatNonlocal, FALSE, x,
+                                            nbv->grp[eintNonlocal].nbat);
 
             wallcycle_sub_stop(wcycle, ewcsNB_X_BUF_OPS);
             cycles_force += wallcycle_stop(wcycle, ewcNB_XF_BUF_OPS);
@@ -2013,39 +2020,39 @@ void do_force(FILE *fplog, t_commrec *cr,
 
     switch (inputrec->cutoff_scheme)
     {
-        case ecutsVERLET:
-            do_force_cutsVERLET(fplog, cr, inputrec,
-                                step, nrnb, wcycle,
-                                top,
-                                groups,
-                                box, x, hist,
-                                f, vir_force,
-                                mdatoms,
-                                enerd, fcd,
-                                lambda, graph,
-                                fr, fr->ic,
-                                vsite, mu_tot,
-                                t, field, ed,
-                                bBornRadii,
-                                flags);
-            break;
-        case ecutsGROUP:
-            do_force_cutsGROUP(fplog, cr, inputrec,
-                               step, nrnb, wcycle,
-                               top,
-                               groups,
-                               box, x, hist,
-                               f, vir_force,
-                               mdatoms,
-                               enerd, fcd,
-                               lambda, graph,
-                               fr, vsite, mu_tot,
-                               t, field, ed,
-                               bBornRadii,
-                               flags);
-            break;
-        default:
-            gmx_incons("Invalid cut-off scheme passed!");
+    case ecutsVERLET:
+        do_force_cutsVERLET(fplog, cr, inputrec,
+                            step, nrnb, wcycle,
+                            top,
+                            groups,
+                            box, x, hist,
+                            f, vir_force,
+                            mdatoms,
+                            enerd, fcd,
+                            lambda, graph,
+                            fr, fr->ic,
+                            vsite, mu_tot,
+                            t, field, ed,
+                            bBornRadii,
+                            flags);
+        break;
+    case ecutsGROUP:
+        do_force_cutsGROUP(fplog, cr, inputrec,
+                           step, nrnb, wcycle,
+                           top,
+                           groups,
+                           box, x, hist,
+                           f, vir_force,
+                           mdatoms,
+                           enerd, fcd,
+                           lambda, graph,
+                           fr, vsite, mu_tot,
+                           t, field, ed,
+                           bBornRadii,
+                           flags);
+        break;
+    default:
+        gmx_incons("Invalid cut-off scheme passed!");
     }
 }
 
@@ -2598,9 +2605,9 @@ void finish_run(FILE *fplog, t_commrec *cr,
     double  delta_t  = 0;
     double  nbfs     = 0, mflop = 0;
     double  elapsed_time,
-            elapsed_time_over_all_ranks,
-            elapsed_time_over_all_threads,
-            elapsed_time_over_all_threads_over_all_ranks;
+        elapsed_time_over_all_ranks,
+        elapsed_time_over_all_threads,
+        elapsed_time_over_all_threads_over_all_ranks;
     wallcycle_sum(cr, wcycle);
 
     if (cr->nnodes > 1)

@@ -57,10 +57,10 @@ extern "C" {
     struct nbnxn_pairlist_t;
     struct nbnxn_atomdata_t;
 
-KOKKOS_FUNC_QUALIFIER
-real nbnxn_kokkos_launch_kernel (struct nbnxn_pairlist_t gmx_unused    *nbl,
-                                 struct nbnxn_atomdata_t gmx_unused    *nbat) KOKKOS_FUNC_TERM_WITH_RETURN(-1)
-
+    KOKKOS_FUNC_QUALIFIER
+    void nbnxn_kokkos_launch_kernel (struct nbnxn_pairlist_t gmx_unused    *nbl,
+                                     struct nbnxn_atomdata_t gmx_unused    *nbat) KOKKOS_FUNC_TERM
+    
 #ifdef __cplusplus
 }
 #endif

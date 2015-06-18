@@ -576,7 +576,7 @@ void nbnxn_atomdata_init_kokkos(FILE *fp,
     nbat->alloc((void **)&nbat->shift_vec, SHIFTS*sizeof(*nbat->shift_vec));
     nbat->xstride = (nbat->XFormat == nbatXYZQ ? STRIDE_XYZQ : DIM);
     nbat->fstride = (nbat->FFormat == nbatXYZQ ? STRIDE_XYZQ : DIM);
-    /* Set Kokkos doual View and host pointer of x to NULL */
+    /* Set Kokkos dual View and host pointer of x to NULL */
     destroy_kokkos(nbat->kk_nbat->k_x,nbat->x);
 
 #ifdef GMX_NBNXN_SIMD

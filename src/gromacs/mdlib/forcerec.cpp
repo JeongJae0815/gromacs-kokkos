@@ -2152,7 +2152,7 @@ static void init_nb_verlet(FILE                *fp,
                          fr->bNonbonded,
                          &nbv->bUseGPU,
                          &bEmulateGPU,
-			 &nbv->bUseKokkos,
+                         &nbv->bUseKokkos,
                          fr->gpu_opt);
 
     nbv->nbs = NULL;
@@ -2249,11 +2249,23 @@ static void init_nb_verlet(FILE                *fp,
         gpu_set_host_malloc_and_free(nbv->grp[0].kernel_type == nbnxnk8x8x8_GPU,
                                      &nb_alloc, &nb_free);
 
-        nbnxn_init_pairlist_set(&nbv->grp[i].nbl_lists,
-                                nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-                                /* 8x8x8 "non-simple" lists are ATM always combined */
-                                !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-                                nb_alloc, nb_free);
+        if (nbv->bUseKokkos)
+        {
+            nbnxn_init_pairlist_set_kokkos(&nbv->grp[i].nbl_lists,
+                                           nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+                                           /* 8x8x8 "non-simple" lists are ATM always combined */
+                                           !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+                                           nb_alloc, nb_free);
+        }
+        else
+        {
+            nbnxn_init_pairlist_set(&nbv->grp[i].nbl_lists,
+                                    nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+                                    /* 8x8x8 "non-simple" lists are ATM always combined */
+                                    !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+                                    nb_alloc, nb_free);
+        }
+
 
         if (i == 0 ||
             nbv->grp[0].kernel_type != nbv->grp[i].kernel_type)
