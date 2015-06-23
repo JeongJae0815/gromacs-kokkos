@@ -3397,3 +3397,44 @@ void free_gpu_resources(const t_forcerec     *fr,
         }
     }
 }
+
+/* Frees Kokkos Views
+ *
+ * Note that this function needs to be called even if GPUs are not used
+ * in this run because the PME ranks have no knowledge of whether GPUs
+ * are used or not, but all ranks need to enter the barrier below.
+ */
+void free_kokkos_resources(const t_forcerec     *fr,
+                           const t_commrec      *cr)
+{
+    gmx_bool bIsPPrankUsingKokkos;
+    //    char     gpu_err_str[STRLEN];
+
+    bIsPPrankUsingKokkos = (cr->duty & DUTY_PP) && fr && fr->nbv && fr->nbv->bUseKokkos;
+
+    if (bIsPPrankUsingKokkos)
+    {
+        /* free atomdata Kokkos Views */
+        nbnxn_atomdata_free_kokkos(fr->nbv->grp[0].nbat);
+
+        /* With tMPI we need to wait for all ranks to finish deallocation before
+         * destroying the context in free_gpu() as some ranks may be sharing
+         * GPU and context.
+         * Note: as only PP ranks need to free GPU resources, so it is safe to
+         * not call the barrier on PME ranks.
+         */
+// #ifdef GMX_THREAD_MPI
+//         if (PAR(cr))
+//         {
+//             gmx_barrier(cr);
+//         }
+// #endif  /* GMX_THREAD_MPI */
+
+        /* Finalize Kokkos ? */
+        // if (!free_cuda_gpu(cr->rank_pp_intranode, gpu_err_str, gpu_info, gpu_opt))
+        // {
+        //     gmx_warning("On rank %d failed to free GPU #%d: %s",
+        //                 cr->nodeid, get_current_cuda_gpu_device_id(), gpu_err_str);
+        // }
+    }
+}

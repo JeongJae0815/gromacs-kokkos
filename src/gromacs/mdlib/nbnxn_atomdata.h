@@ -160,7 +160,7 @@ void nbnxn_atomdata_add_nbat_fshift_to_fshift(const nbnxn_atomdata_t *nbat,
 
 /* Frees the Kokkos views  */
 KOKKOS_FUNC_QUALIFIER
-void nbnxn_atomdata_free_kokkos(FILE *fp, nbnxn_atomdata_t *nbat) KOKKOS_FUNC_TERM
+void nbnxn_atomdata_free_kokkos(nbnxn_atomdata_t *nbat) KOKKOS_FUNC_TERM
 
 #ifdef __cplusplus
 }

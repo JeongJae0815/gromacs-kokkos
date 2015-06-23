@@ -222,15 +222,17 @@ static void nbnxn_init_pairlist_kokkos(nbnxn_pairlist_t *nbl,
     nbl->nci         = 0;
 
     /* Set Kokkos dual View and host pointer of ci to NULL */
-    //    nbl->ci          = NULL;
-    destroy_kokkos(nbl->kk_plist->k_ci,nbl->ci);
+    nbl->ci          = NULL;
+    nbl->kk_plist->h_un_ci = HAT::t_un_ci_1d();
+    //    destroy_kokkos(nbl->kk_plist->k_ci,nbl->ci);
 
     nbl->ci_nalloc   = 0;
     nbl->ncj         = 0;
 
     /* Set Kokkos dual View and host pointer of ci to NULL */
-    //nbl->cj          = NULL;
-    destroy_kokkos(nbl->kk_plist->k_cj,nbl->cj);
+    nbl->cj          = NULL;
+    nbl->kk_plist->h_un_cj = HAT::t_un_cj_1d();
+    //destroy_kokkos(nbl->kk_plist->k_cj,nbl->cj);
 
     nbl->cj_nalloc   = 0;
     nbl->ncj4        = 0;
@@ -340,7 +342,13 @@ void new_ci_entry_kokkos(nbnxn_pairlist_t *nbl, int ci, int shift, int flags)
     {
         //        nb_realloc_ci(nbl, nbl->nci+1);
         nbl->ci_nalloc = over_alloc_small(nbl->nci+1);
-        grow_kokkos(nbl->kk_plist->k_ci,nbl->ci,nbl->ci_nalloc,"plist::ci");
+        nbnxn_realloc_void((void **)&nbl->ci,
+                           nbl->nci*sizeof(*nbl->ci),
+                           nbl->ci_nalloc*sizeof(*nbl->ci),
+                           nbl->alloc, nbl->free);
+
+        nbl->kk_plist->h_un_ci = HAT::t_un_ci_1d(nbl->ci,nbl->ci_nalloc);
+        //grow_kokkos(nbl->kk_plist->k_ci,nbl->ci,nbl->ci_nalloc,"plist::ci");
     }
 
     nbl->ci[nbl->nci].ci            = ci;
@@ -363,7 +371,12 @@ void check_subcell_list_space_simple_kokkos(nbnxn_pairlist_t *nbl,
     if (cj_max > nbl->cj_nalloc)
     {
         nbl->cj_nalloc = over_alloc_small(cj_max);
-        grow_kokkos(nbl->kk_plist->k_cj,nbl->cj,nbl->cj_nalloc,"plist::cj");
+        nbnxn_realloc_void((void **)&nbl->cj,
+                           nbl->ncj*sizeof(*nbl->cj),
+                           nbl->cj_nalloc*sizeof(*nbl->cj),
+                           nbl->alloc, nbl->free);
+        nbl->kk_plist->h_un_cj = HAT::t_un_cj_1d(nbl->cj,nbl->cj_nalloc);
+        //        grow_kokkos(nbl->kk_plist->k_cj,nbl->cj,nbl->cj_nalloc,"plist::cj");
     }
 
 }
@@ -371,20 +384,20 @@ void check_subcell_list_space_simple_kokkos(nbnxn_pairlist_t *nbl,
 void nbnxn_sync_pairlist_kokkos(nbnxn_pairlist_t *nbl)
 {
 
-    nbl->kk_plist->k_ci.modify<GMXHostType>();
-    nbl->kk_plist->k_cj.modify<GMXHostType>();
+    // nbl->kk_plist->k_ci.modify<GMXHostType>();
+    // nbl->kk_plist->k_cj.modify<GMXHostType>();
 
-    nbl->kk_plist->k_ci.sync<GMXDeviceType>();
-    nbl->kk_plist->k_cj.sync<GMXDeviceType>();
+    // nbl->kk_plist->k_ci.sync<GMXDeviceType>();
+    // nbl->kk_plist->k_cj.sync<GMXDeviceType>();
 }
 /* Kokkos: copy pairlist from host to device views*/
 void nbnxn_kokkos_sync_pairlist(nbnxn_pairlist_set_t *nbl_list)
 {
 
-    int i;
+    // int i;
 
-    for (i = 0; i < nbl_list->nnbl; i++)
-    {
-        nbnxn_sync_pairlist_kokkos(nbl_list->nbl[i]);
-    }
+    // for (i = 0; i < nbl_list->nnbl; i++)
+    // {
+    //     nbnxn_sync_pairlist_kokkos(nbl_list->nbl[i]);
+    // }
 }

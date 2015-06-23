@@ -942,11 +942,20 @@ void nbnxn_atomdata_set_kokkos(nbnxn_atomdata_t    *nbat,
 
     // for kokkos, nbat->XFormat == nbatXYZQ is used hence x is modified when charges are modified
     // in set_charges, mask_fep, 
-    nbat->kk_nbat->k_x.modify<GMXHostType>();
+    // nbat->kk_nbat->k_x.modify<GMXHostType>();
 }
 
-void nbnxn_atomdata_free_kokkos(FILE *fp, nbnxn_atomdata_t *nbat)
+void nbnxn_atomdata_free_kokkos(nbnxn_atomdata_t *nbat)
 {
+    // \todo for dual views destroy_kokkos function not sufficient
+    // alternative approach is suggested by Christian:
+    // Kokkos::DualView<int*> A(“A”,10);
+    // A.d_view=Kokkos::DualView<int*>::t_dev();
+    // A.h_view=Kokkos::DualView<int*>::t_host();
+    // A.modified_device = Kokkos::View<unsigned int, LayoutLeft, typename Kokkos::DualView<int*>::t_host::execution_space>();
+    // A.modified_host = Kokkos::View<unsigned int, LayoutLeft, typename Kokkos::DualView<int*>::t_host::execution_space>();
+
+    // view memory leak messages occur after mdrun finishes, so, for now, no issue from accuracy point of view
   destroy_kokkos(nbat->kk_nbat->k_x,nbat->x);
   sfree(nbat->kk_nbat);
 }

@@ -56,6 +56,8 @@ void kokkos_sync_h2d (kokkos_atomdata_t*  kk_nbat,const kokkos_pairlist_t* kk_pl
 {
 
     kk_nbat->k_x.sync<GMXDeviceType>();
+    kk_nbat->d_x = kk_nbat->k_x.d_view;
+    kk_nbat->h_x = kk_nbat->k_x.h_view;
 
     // kk_plist->k_ci.sync<GMXDeviceType>();
     // kk_plist->k_sci.sync<GMXDeviceType>();
@@ -111,6 +113,21 @@ struct nbnxn_kokkos_kernel_functor
         printf("My team id: %d\n",my_ci);
         printf("My thread id: %d\n",my_cj);
 
+
+        // allocate team shared memory for loading ci and cj cluster atoms
+
+        // hard coding the size 4 atoms each with 3 values, x,y,z
+        size_t x_size = 4*3*sizeof(real);
+
+        real* xi_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
+        real* xj_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
+
+        xi_shmem[0] = _adat->d_x(0);
+        xi_shmem[1] = _adat->d_x(1);
+        xi_shmem[2] = _adat->d_x(2);
+        
+        printf("atom 0 coordinates and charge %f %f %f\n",xi_shmem[0],xi_shmem[1],xi_shmem[2]);
+
         // load M coord+params for ci
         
         // for each cj cluster
@@ -123,6 +140,10 @@ struct nbnxn_kokkos_kernel_functor
         
     }
 
+    size_t team_shmem_size (int team_size) const {
+        return sizeof(real )*2*4*3;
+    }
+
 };
 
 void nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
@@ -132,6 +153,7 @@ void nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
     typedef nbnxn_kokkos_kernel_functor f_type;
     f_type nb_f(nbat->kk_nbat, nbl->kk_plist);
 
+    //    printf("host atom 0 coordinates and charge %f %f %f \n",nbat->x[0],nbat->x[1],nbat->x[2]);
     // transfer data from host to device
     // transfer happens only if the data on the host is modified
     kokkos_sync_h2d(nbat->kk_nbat, nbl->kk_plist);
@@ -141,7 +163,6 @@ void nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
 
     // using teams of threads
     // each team conists of M threads (here M==N)
-    // each team works on one ci cluster, hence there are as many teams as ci clusters
 
     //typedef Kokkos::TeamPolicy<device_type>::member_type member_type;
 
@@ -150,13 +171,14 @@ void nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
     const int teamsize = nbl->na_ci; // = 4
     const int nteams = int(nthreads/teamsize);
 
-    Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize);
+    Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
+    Kokkos::TeamPolicy<typename f_type::device_type> config(2,4);
 
-    printf("\n number of threads %d\n", nthreads);
+    printf("\n number of threads per team %d\n", teamsize);
     printf("\n number of teams %d\n", nteams);
 
-    printf("\n number of i clusters %d\n", nbl->nci);
-    printf("\n number of atoms in i cluster %d\n", nbl->na_ci);
+    //    printf("\n number of i clusters %d\n", nbl->nci);
+    //    printf("\n number of atoms in i cluster %d\n", nbl->na_ci);
 
     // launch kernel
     Kokkos::parallel_for(config,nb_f);

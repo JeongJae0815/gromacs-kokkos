@@ -284,6 +284,10 @@ void free_gpu_resources(const t_forcerec            *fr,
                         const struct gmx_gpu_info_t *gpu_info,
                         const gmx_gpu_opt_t         *gpu_opt);
 
+void free_kokkos_resources(const t_forcerec            *fr,
+                           const t_commrec             *cr);
+ 
+
 #ifdef __cplusplus
 }
 #endif

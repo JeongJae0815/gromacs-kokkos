@@ -111,9 +111,6 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
-#ifdef GMX_KOKKOS
-#include "gromacs/mdlib/nbnxn_atomdata.h"
-#endif
 
 #include "deform.h"
 #include "membed.h"
@@ -1822,11 +1819,6 @@ double do_md(FILE *fplog, t_commrec *cr, int nfile, const t_filenm fnm[],
 
     }
     /* End of main MD loop */
-#ifdef GMX_KOKKOS
-    /* free Kokkos views */
-    nbnxn_atomdata_free_kokkos(fplog, fr->nbv->grp[0].nbat);
-    //    nbnxn_atomdata_free_kokkos(fplog, fr->nbv->grp[1].nbat);
-#endif    
     debug_gmx();
 
     /* Closing TNG files can include compressing data. Therefore it is good to do that

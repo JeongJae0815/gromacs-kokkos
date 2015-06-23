@@ -60,6 +60,7 @@
 #ifdef GMX_KOKKOS
 #include <impl/Kokkos_Timer.hpp>
 #include <Kokkos_Core.hpp>
+#include <Kokkos_Vectorization.hpp>
 #endif
 
 #include "gromacs/commandline/pargs.h"
@@ -434,11 +435,6 @@ int gmx_mdrun(int argc, char *argv[])
 
     cr = init_commrec();
 
-#ifdef GMX_KOKKOS
-    Kokkos::initialize(argc, argv);
-    printf("\n \n Initializing Kokkos \n \n");
-#endif
-
     unsigned long PCA_Flags = PCA_CAN_SET_DEFFNM;
     // With -multi or -multidir, the file names are going to get processed
     // further (or the working directory changed), so we can't check for their
@@ -605,6 +601,14 @@ int gmx_mdrun(int argc, char *argv[])
     ddxyz[XX] = (int)(realddxyz[XX] + 0.5);
     ddxyz[YY] = (int)(realddxyz[YY] + 0.5);
     ddxyz[ZZ] = (int)(realddxyz[ZZ] + 0.5);
+
+#ifdef GMX_KOKKOS
+    int numa = 1;
+    Kokkos::InitArguments kk_args;
+    kk_args.num_threads = hw_opt.nthreads_omp;
+    Kokkos::initialize(kk_args);
+    printf("\n \n Initializing Kokkos with %d OpenMP threads\n \n", hw_opt.nthreads_omp);
+#endif
 
     rc = mdrunner(&hw_opt, fplog, cr, NFILE, fnm, oenv, bVerbose, bCompact,
                   nstglobalcomm, ddxyz, dd_node_order, rdd, rconstr,
