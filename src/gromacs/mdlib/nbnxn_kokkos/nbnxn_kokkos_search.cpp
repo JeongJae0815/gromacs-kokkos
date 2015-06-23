@@ -229,7 +229,7 @@ static void nbnxn_init_pairlist_kokkos(nbnxn_pairlist_t *nbl,
     nbl->ncj         = 0;
 
     /* Set Kokkos dual View and host pointer of ci to NULL */
-    //    nbl->cj          = NULL;
+    //nbl->cj          = NULL;
     destroy_kokkos(nbl->kk_plist->k_cj,nbl->cj);
 
     nbl->cj_nalloc   = 0;
@@ -309,6 +309,7 @@ void nbnxn_init_pairlist_set_kokkos(nbnxn_pairlist_set_t *nbl_list,
          * to optimize memory access for NUMA architectures.
          */
         snew(nbl_list->nbl[i], 1);
+        snew(nbl_list->nbl[i]->kk_plist, 1);
 
         /* Only list 0 is used on the GPU, use normal allocation for i>0 */
         if (i == 0)

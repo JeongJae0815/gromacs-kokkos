@@ -46,6 +46,7 @@
 #ifndef NBNXN_KOKKOS_KERNEL_H
 #define NBNXN_KOKKOS_KERNEL_H
 
+#include "gromacs/legacyheaders/gmx_omp_nthreads.h"
 #include "gromacs/mdlib/nbnxn_kokkos.h"
 
 #include "nbnxn_kokkos_types.h"
@@ -143,12 +144,19 @@ void nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
     // each team works on one ci cluster, hence there are as many teams as ci clusters
 
     //typedef Kokkos::TeamPolicy<device_type>::member_type member_type;
-    const int nteams = nbl->nci;
-    const int teamsize = nbl->na_ci;
+
+    int nthreads = gmx_omp_nthreads_get(emntNonbonded);
+
+    const int teamsize = nbl->na_ci; // = 4
+    const int nteams = int(nthreads/teamsize);
+
     Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize);
 
-    printf("\n number of i clusters %d\n", nteams);
-    printf("\n number of atoms in a cluster %d\n", teamsize);
+    printf("\n number of threads %d\n", nthreads);
+    printf("\n number of teams %d\n", nteams);
+
+    printf("\n number of i clusters %d\n", nbl->nci);
+    printf("\n number of atoms in i cluster %d\n", nbl->na_ci);
 
     // launch kernel
     Kokkos::parallel_for(config,nb_f);
