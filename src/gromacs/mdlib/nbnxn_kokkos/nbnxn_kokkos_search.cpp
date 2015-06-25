@@ -292,7 +292,8 @@ void nbnxn_init_pairlist_set_kokkos(nbnxn_pairlist_set_t *nbl_list,
     nbl_list->bSimple   = bSimple;
     nbl_list->bCombined = bCombined;
 
-    nbl_list->nnbl = gmx_omp_nthreads_get(emntNonbonded);
+    // for now, Kokkos kernel builds only one neighborlist
+    nbl_list->nnbl = 1; //gmx_omp_nthreads_get(emntNonbonded);
 
     if (!nbl_list->bCombined &&
         nbl_list->nnbl > NBNXN_BUFFERFLAG_MAX_THREADS)
@@ -304,7 +305,7 @@ void nbnxn_init_pairlist_set_kokkos(nbnxn_pairlist_set_t *nbl_list,
     snew(nbl_list->nbl, nbl_list->nnbl);
     snew(nbl_list->nbl_fep, nbl_list->nnbl);
     /* Execute in order to avoid memory interleaving between threads */
-#pragma omp parallel for num_threads(nbl_list->nnbl) schedule(static)
+    //#pragma omp parallel for num_threads(nbl_list->nnbl) schedule(static)
     for (i = 0; i < nbl_list->nnbl; i++)
     {
         /* Allocate the nblist data structure locally on each thread

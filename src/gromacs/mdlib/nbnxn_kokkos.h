@@ -47,22 +47,29 @@
 #define GMX_MDLIB_NBNXN_KOKKOS_H
 
 #include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
+#include "gromacs/legacyheaders/types/interaction_const.h"
 #include "gromacs/legacyheaders/types/simple.h"
 #include "gromacs/mdlib/nbnxn_kokkos_types.h"
+#include "gromacs/mdlib/nbnxn_pairlist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-    struct nbnxn_pairlist_t;
-    struct nbnxn_atomdata_t;
-
     KOKKOS_FUNC_QUALIFIER
-    void nbnxn_kokkos_launch_kernel (struct nbnxn_pairlist_t gmx_unused    *nbl,
-                                     struct nbnxn_atomdata_t gmx_unused    *nbat) KOKKOS_FUNC_TERM
+    void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      gmx_unused *nbl_list,
+                                    const nbnxn_atomdata_t    gmx_unused *nbat,
+                                    const interaction_const_t gmx_unused *ic,
+                                    int                       gmx_unused  ewald_excl,
+                                    rvec                      gmx_unused *shift_vec,
+                                    int                       gmx_unused  force_flags,
+                                    int                       gmx_unused  clearF,
+                                    real                      gmx_unused *fshift,
+                                    real                      gmx_unused *Vc,
+                                    real                      gmx_unused *Vvdw) KOKKOS_FUNC_TERM
     
 #ifdef __cplusplus
-}
+        }
 #endif
 
 

@@ -534,8 +534,17 @@ static void do_nb_verlet(t_forcerec *fr,
 
     case nbnxn_Kokkos:
         printf("\n Kokkos Kernel launch \n");
-        nbnxn_kokkos_launch_kernel(nbvg->nbl_lists.nbl[0],
-                                   nbvg->nbat);
+        nbnxn_kokkos_launch_kernel(&nbvg->nbl_lists,
+                                   nbvg->nbat, ic,
+                                   nbvg->ewald_excl,
+                                   fr->shift_vec,
+                                   flags,
+                                   clearF,
+                                   fr->fshift[0],
+                                   enerd->grpp.ener[egCOULSR],
+                                   fr->bBHAM ?
+                                   enerd->grpp.ener[egBHAMSR] :
+                                   enerd->grpp.ener[egLJSR]);
         break;
 
     case nbnxnk8x8x8_PlainC:

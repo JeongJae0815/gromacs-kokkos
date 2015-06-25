@@ -46,10 +46,32 @@
 #ifndef NBNXN_KOKKOS_KERNEL_H
 #define NBNXN_KOKKOS_KERNEL_H
 
+#include "gmxpre.h"
+
+#include "config.h"
+
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
+#include "gromacs/legacyheaders/typedefs.h"
+#include "gromacs/legacyheaders/types/force_flags.h"
+#include "gromacs/mdlib/nb_verlet.h"
+#include "gromacs/mdlib/nbnxn_simd.h"
 #include "gromacs/mdlib/nbnxn_kokkos.h"
+#include "gromacs/utility/fatalerror.h"
+#include "gromacs/pbcutil/ishift.h"
 
 #include "nbnxn_kokkos_types.h"
+
+/*! \brief Kinds of electrostatic treatments in SIMD Verlet kernels
+ */
+enum {
+    coulktRF, coulktTAB, coulktTAB_TWIN, coulktEWALD, coulktEWALD_TWIN, coulktNR
+};
+
+/*! \brief Kinds of Van der Waals treatments in SIMD Verlet kernels
+ */
+enum {
+    vdwktLJCUT_COMBGEOM, vdwktLJCUT_COMBLB, vdwktLJCUT_COMBNONE, vdwktLJFORCESWITCH, vdwktLJPOTSWITCH, vdwktLJEWALDCOMBGEOM, vdwktNR
+};
 
 // transfer data from host-to-device if the data on the host is modified
 void kokkos_sync_h2d (kokkos_atomdata_t*  kk_nbat,const kokkos_pairlist_t* kk_plist)
@@ -78,15 +100,27 @@ void kokkos_sync_d2h (kokkos_atomdata_t*  kk_nbat,const kokkos_pairlist_t* kk_pl
 
 struct nbnxn_kokkos_kernel_functor
 {
+    // for now focusing on Xeon Phi device which is run in a native mode, i.e., host==device
     typedef GMXDeviceType device_type;
-    //typedef Kokkos::Vectorization<GMXDeviceType, NeighClusterSize> vectorization;
 
     // list of structures needed for non-bonded interactions
-    const kokkos_atomdata_t *_adat;
-    const kokkos_pairlist_t *_plist;
+    const DAT::t_real_1d   x_;
+    const HAT::t_un_ci_1d ci_;
+    const HAT::t_un_cj_1d cj_;
 
-    nbnxn_kokkos_kernel_functor (const kokkos_atomdata_t*  adat_,const kokkos_pairlist_t* plist_):
-        _adat(adat_),_plist(plist_)
+    const int nci_team_;
+
+    // cluster size parameters
+    // for now, Kokkos kernel uses 4*4 cluster size
+    const int M_ = 4;
+    const int N_ = 4;
+    const int xstride_ = 3;
+
+    nbnxn_kokkos_kernel_functor (const DAT::t_real_1d x,
+                                 const HAT::t_un_ci_1d ci,
+                                 const HAT::t_un_cj_1d cj,
+                                 const int nci_team):
+        x_(x),ci_(ci),cj_(cj),nci_team_(nci_team)
     {
 
     };
@@ -102,91 +136,270 @@ struct nbnxn_kokkos_kernel_functor
         return 0.0;
     }
 
+    // with thread teams
     KOKKOS_INLINE_FUNCTION
     void operator()(const  typename Kokkos::TeamPolicy<device_type>::member_type& dev) const
     {
-        //   compute_item(dev);
-        // index for i cluster assiged to this team
-        int my_ci = dev.league_rank();
-        int my_cj = dev.league_rank() * dev.team_size() + dev.team_rank();
 
-        printf("My team id: %d\n",my_ci);
-        printf("My thread id: %d\n",my_cj);
+        // print team information
+        if (dev.league_rank() == 0)
+        {
+            printf("There are %d teams\n", dev.league_size());
+            printf("There are %d threads per team\n", dev.team_size());
+        }
 
+        printf("My team.thread id is %d . %d \n",dev.league_rank(),dev.team_rank());
 
-        // allocate team shared memory for loading ci and cj cluster atoms
+        int ai, aj;
+        int cjind0, cjind1;
+        int n, ci, ci_sh;
+        int ish, ishf;
+        int cj;
 
-        // hard coding the size 4 atoms each with 3 values, x,y,z
-        size_t x_size = 4*3*sizeof(real);
+        real dx, dy, dz;
+        real rsq, rinv;
+        real rinvsq, rinvsix;
+        real c6, c12;
+
+        size_t x_size = M_*xstride_*sizeof(real);
 
         real* xi_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
         real* xj_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
 
-        xi_shmem[0] = _adat->d_x(0);
-        xi_shmem[1] = _adat->d_x(1);
-        xi_shmem[2] = _adat->d_x(2);
-        
-        printf("atom 0 coordinates and charge %f %f %f\n",xi_shmem[0],xi_shmem[1],xi_shmem[2]);
+        const int ciind0 = dev.league_rank() * nci_team_;
+        const int ciind1 = ciind0 + nci_team_;
 
-        // load M coord+params for ci
-        
-        // for each cj cluster
-        //   load N coords+params for cj
-        //   for j = 0 to M
-        //     for i = 0 to N
-        //       calculate interaction of ci*M+i  with cj*N+j
-        //   store N cj-forces
-        // store M ci-forces
-        
+        const int ic = dev.team_rank();
+
+
+        for (n = ciind0; n < ciind1; n++)
+        {
+
+            ish              = (ci_(n).shift & NBNXN_CI_SHIFT);
+            /* x, f and fshift are assumed to be stored with stride 3 */
+            ishf             = ish*DIM;
+            cjind0           = ci_(n).cj_ind_start;
+            cjind1           = ci_(n).cj_ind_end;
+            /* Currently only works super-cells equal to sub-cells */
+            ci               = ci_(n).ci;
+            ci_sh            = (ish == CENTRAL ? ci : -1);
+
+            // each thread loads its i atom from ci cluster into shared memory
+            ai = ci * M_ + ic;
+            xi_shmem[ic*xstride_ + XX] = x_(ai*xstride_ + XX);
+            xi_shmem[ic*xstride_ + YY] = x_(ai*xstride_ + YY);
+            xi_shmem[ic*xstride_ + ZZ] = x_(ai*xstride_ + ZZ);
+
+            int cjind = cjind0;
+            while (cjind < cjind1 && cj_(cjind).excl != 0xffff)
+            {
+                cj = cj_(cjind).cj;
+                aj = cj * N_ + ic;
+                
+                xj_shmem[ic*xstride_ + XX] = x_(aj*xstride_ + XX);
+                xj_shmem[ic*xstride_ + YY] = x_(aj*xstride_ + YY);
+                xj_shmem[ic*xstride_ + ZZ] = x_(aj*xstride_ + ZZ);
+                
+                //wait until all threads load their xi and xj
+                dev.team_barrier();
+
+                // each thread computes forces on its own i atom due to all j atoms in cj cluster
+                for (aj = 0; aj < N_; aj++)
+                {
+                    dx = xi_shmem[ic*xstride_ + XX] - xj_shmem[aj*xstride_ + XX];
+                    dy = xi_shmem[ic*xstride_ + YY] - xj_shmem[aj*xstride_ + YY];
+                    dz = xi_shmem[ic*xstride_ + ZZ] - xj_shmem[aj*xstride_ + ZZ];
+                }
+
+                cjind++;
+
+            }
+            
+        }
+
     }
 
     size_t team_shmem_size (int team_size) const {
-        return sizeof(real )*2*4*3;
+        return sizeof(real ) * (M_* xstride_ + N_ * xstride_);
     }
 
 };
 
-void nbnxn_kokkos_launch_kernel (nbnxn_pairlist_t     *nbl,
-                                 nbnxn_atomdata_t     *nbat)
+void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
+                                const nbnxn_atomdata_t    *nbat,
+                                const interaction_const_t *ic,
+                                int                       ewald_excl,
+                                rvec                      *shift_vec,
+                                int                       force_flags,
+                                int                       clearF,
+                                real                      *fshift,
+                                real                      *Vc,
+                                real                      *Vvdw)
 {
 
-    typedef nbnxn_kokkos_kernel_functor f_type;
-    f_type nb_f(nbat->kk_nbat, nbl->kk_plist);
+    int                nnbl;
+    nbnxn_pairlist_t **nbl;
+    int                coulkt, vdwkt = 0;
+    int                nb;
+    int                nthreads gmx_unused;
 
-    //    printf("host atom 0 coordinates and charge %f %f %f \n",nbat->x[0],nbat->x[1],nbat->x[2]);
+    nnbl = nbl_list->nnbl;
+    nbl  = nbl_list->nbl;
+
+    if (EEL_RF(ic->eeltype) || ic->eeltype == eelCUT)
+    {
+        coulkt = coulktRF;
+    }
+    else
+    {
+        if (ewald_excl == ewaldexclTable)
+        {
+            if (ic->rcoulomb == ic->rvdw)
+            {
+                coulkt = coulktTAB;
+            }
+            else
+            {
+                coulkt = coulktTAB_TWIN;
+            }
+        }
+        else
+        {
+            if (ic->rcoulomb == ic->rvdw)
+            {
+                coulkt = coulktEWALD;
+            }
+            else
+            {
+                coulkt = coulktEWALD_TWIN;
+            }
+        }
+    }
+
+    if (ic->vdwtype == evdwCUT)
+    {
+        switch (ic->vdw_modifier)
+        {
+        case eintmodNONE:
+        case eintmodPOTSHIFT:
+            switch (nbat->comb_rule)
+            {
+            case ljcrGEOM: vdwkt = vdwktLJCUT_COMBGEOM; break;
+            case ljcrLB:   vdwkt = vdwktLJCUT_COMBLB;   break;
+            case ljcrNONE: vdwkt = vdwktLJCUT_COMBNONE; break;
+            default:       gmx_incons("Unknown combination rule");
+            }
+            break;
+        case eintmodFORCESWITCH:
+            vdwkt = vdwktLJFORCESWITCH;
+            break;
+        case eintmodPOTSWITCH:
+            vdwkt = vdwktLJPOTSWITCH;
+            break;
+        default:
+            gmx_incons("Unsupported VdW interaction modifier");
+        }
+    }
+    else if (ic->vdwtype == evdwPME)
+    {
+        if (ic->ljpme_comb_rule == eljpmeLB)
+        {
+            gmx_incons("The nbnxn Kokkos kernel doesn't suport LJ-PME with LB");
+        }
+        vdwkt = vdwktLJEWALDCOMBGEOM;
+    }
+    else
+    {
+        gmx_incons("Unsupported VdW interaction type");
+    }
+
+    printf("Number of neighborlists is %d\n", nnbl);
+
+    nthreads = gmx_omp_nthreads_get(emntNonbonded);
+
+    // for now there is minimum 4 threads condition
+    if (nthreads < 4)
+    {
+        gmx_incons("For nbnxn Kokkos kernel minimum 4 OpenMP thread required.");
+    }
+
     // transfer data from host to device
-    // transfer happens only if the data on the host is modified
-    kokkos_sync_h2d(nbat->kk_nbat, nbl->kk_plist);
+    kokkos_sync_h2d(nbat->kk_nbat, nbl[0]->kk_plist);
 
-    // following loop structure based on clusters explained in fig. 6
-    // of ref. S. Pall and B. Hess, Comp. Phys. Comm., 184, 2013
+    // initialize Kokkos functor
 
-    // using teams of threads
-    // each team conists of M threads (here M==N)
-
-    //typedef Kokkos::TeamPolicy<device_type>::member_type member_type;
-
-    int nthreads = gmx_omp_nthreads_get(emntNonbonded);
-
-    const int teamsize = nbl->na_ci; // = 4
+    const int teamsize = 4; //nbl[0]->na_ci;
     const int nteams = int(nthreads/teamsize);
+    const int nci_team = int(nbl[0]->nci/nteams) + 1;
+
+    typedef nbnxn_kokkos_kernel_functor f_type;
+    f_type nb_f(nbat->kk_nbat->d_x,
+                nbl[0]->kk_plist->h_un_ci,
+                nbl[0]->kk_plist->h_un_cj,nci_team);
 
     Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
-    Kokkos::TeamPolicy<typename f_type::device_type> config(2,4);
+    Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize);
 
-    printf("\n number of threads per team %d\n", teamsize);
-    printf("\n number of teams %d\n", nteams);
-
-    //    printf("\n number of i clusters %d\n", nbl->nci);
-    //    printf("\n number of atoms in i cluster %d\n", nbl->na_ci);
+    // printf("\n number of threads per team %d\n", teamsize);
+    // printf("\n number of teams %d\n", nteams);
+    // printf("\n number of i clusters %d\n", nbl[0]->nci);
 
     // launch kernel
     Kokkos::parallel_for(config,nb_f);
 
-    // transfer data from device to device
-    // transfer happens only if the data on the device is modified, mainly forces
-    kokkos_sync_d2h(nbat->kk_nbat, nbl->kk_plist);
-    
+
+    // for (nb = 0; nb < nnbl; nb++)
+    // {
+    //     nbnxn_atomdata_output_t *out;
+    //     real                    *fshift_p;
+
+    //     out = &nbat->out[nb];
+
+    //     if (clearF == enbvClearFYes)
+    //     {
+    //         // clear_f(nbat, nb, out->f);
+    //     }
+
+    //     if ((force_flags & GMX_FORCE_VIRIAL) && nnbl == 1)
+    //     {
+    //         fshift_p = fshift;
+    //     }
+    //     else
+    //     {
+    //         fshift_p = out->fshift;
+
+    //         if (clearF == enbvClearFYes)
+    //         {
+    //             // clear_fshift(fshift_p);
+    //         }
+    //     }
+
+    //     // if (!(force_flags & GMX_FORCE_ENERGY))
+    //     // {
+    //     //     /* Don't calculate energies */
+    //     //     p_nbk_noener[coulkt][vdwkt](nbl[nb], nbat,
+    //     //                                 ic,
+    //     //                                 shift_vec,
+    //     //                                 out->f,
+    //     //                                 fshift_p);
+    //     // }
+    //     // else
+    //     // {
+    //     //     gmx_incons("nbnxn Kokkos kernel doesn't yet support energy calculations.");
+    //     // }
+    // }
+
 }
 
 #endif
+
+
+// // following loop structure based on clusters explained in fig. 6
+// // of ref. S. Pall and B. Hess, Comp. Phys. Comm., 184, 2013
+// // for each cj cluster
+// //   load N coords+params for cj
+// //   for j = 0 to M
+// //     for i = 0 to N
+// //       calculate interaction of ci*M+i  with cj*N+j
+// //   store N cj-forces
+// // store M ci-forces
