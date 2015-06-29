@@ -113,6 +113,8 @@ struct ArrayTypes<GMXDeviceType> {
     typedef tdual_real_1d::t_dev_const_um t_real_1d_const_um;
     typedef tdual_real_1d::t_dev_const_randomread t_real_1d_randomread;
 
+    // 1d unmanaged view for real array n with right layout
+    typedef Kokkos::View<real*, Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> t_un_real_1d;
 
     // pairlist related views
 
@@ -196,6 +198,9 @@ struct ArrayTypes<GMXHostType> {
     typedef tdual_real_1d::t_host_um t_real_1d_um;
     typedef tdual_real_1d::t_host_const_um t_real_1d_const_um;
     typedef tdual_real_1d::t_host_const_randomread t_real_1d_randomread;
+
+    // 1d unmanaged view for real array n with right layout
+    typedef Kokkos::View<real*, Kokkos::LayoutRight, GMXHostType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> t_un_real_1d;
 
     // pairlist related views
 

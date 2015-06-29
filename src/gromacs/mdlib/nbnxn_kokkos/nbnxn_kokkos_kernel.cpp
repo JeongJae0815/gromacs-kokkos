@@ -50,12 +50,15 @@
 
 #include "config.h"
 
+#include "gromacs/legacyheaders/force.h"
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
 #include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/legacyheaders/types/force_flags.h"
+#include "gromacs/math/vec.h"
 #include "gromacs/mdlib/nb_verlet.h"
 #include "gromacs/mdlib/nbnxn_simd.h"
 #include "gromacs/mdlib/nbnxn_kokkos.h"
+#include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_common.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/pbcutil/ishift.h"
 
@@ -105,8 +108,10 @@ struct nbnxn_kokkos_kernel_functor
 
     // list of structures needed for non-bonded interactions
     const DAT::t_real_1d   x_;
+    const HAT::t_un_real_1d q_;
     const HAT::t_un_ci_1d ci_;
     const HAT::t_un_cj_1d cj_;
+    const HAT::t_un_real_1d f_;
 
     const int nci_team_;
 
@@ -115,12 +120,15 @@ struct nbnxn_kokkos_kernel_functor
     const int M_ = 4;
     const int N_ = 4;
     const int xstride_ = 3;
+    const int fstride_ = 3;
 
     nbnxn_kokkos_kernel_functor (const DAT::t_real_1d x,
+                                 const HAT::t_un_real_1d q,
                                  const HAT::t_un_ci_1d ci,
                                  const HAT::t_un_cj_1d cj,
+                                 const HAT::t_un_real_1d f,
                                  const int nci_team):
-        x_(x),ci_(ci),cj_(cj),nci_team_(nci_team)
+        x_(x),q_(q),ci_(ci),cj_(cj),f_(f),nci_team_(nci_team)
     {
 
     };
@@ -142,15 +150,16 @@ struct nbnxn_kokkos_kernel_functor
     {
 
         // print team information
-        if (dev.league_rank() == 0)
-        {
-            printf("There are %d teams\n", dev.league_size());
-            printf("There are %d threads per team\n", dev.team_size());
-        }
+        // if (dev.league_rank() == 0)
+        // {
+        //     printf("There are %d teams\n", dev.league_size());
+        //     printf("There are %d threads per team\n", dev.team_size());
+        // }
 
-        printf("My team.thread id is %d . %d \n",dev.league_rank(),dev.team_rank());
+        //        printf("My team.thread id is %d . %d \n",dev.league_rank(),dev.team_rank());
 
         int ai, aj;
+        int i, j;
         int cjind0, cjind1;
         int n, ci, ci_sh;
         int ish, ishf;
@@ -159,17 +168,24 @@ struct nbnxn_kokkos_kernel_functor
         real dx, dy, dz;
         real rsq, rinv;
         real rinvsq, rinvsix;
+        real rcut2;
         real c6, c12;
+        real FrLJ6 = 0, FrLJ12 = 0, frLJ = 0, VLJ = 0;
+        real fscal;
+        real fx, fy, fz;
 
         size_t x_size = M_*xstride_*sizeof(real);
+        size_t f_size = M_*fstride_*sizeof(real);
 
         real* xi_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
         real* xj_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
-
+        real* fi_shmem = (real * ) dev.team_shmem().get_shmem(f_size);
+        real* fj_shmem = (real * ) dev.team_shmem().get_shmem(f_size);
+        
         const int ciind0 = dev.league_rank() * nci_team_;
         const int ciind1 = ciind0 + nci_team_;
 
-        const int ic = dev.team_rank();
+        const int it = dev.team_rank();
 
 
         for (n = ciind0; n < ciind1; n++)
@@ -185,42 +201,138 @@ struct nbnxn_kokkos_kernel_functor
             ci_sh            = (ish == CENTRAL ? ci : -1);
 
             // each thread loads its i atom from ci cluster into shared memory
-            ai = ci * M_ + ic;
-            xi_shmem[ic*xstride_ + XX] = x_(ai*xstride_ + XX);
-            xi_shmem[ic*xstride_ + YY] = x_(ai*xstride_ + YY);
-            xi_shmem[ic*xstride_ + ZZ] = x_(ai*xstride_ + ZZ);
+            ai = ci * M_ + it;
+            xi_shmem[it*xstride_ + XX] = x_(ai*xstride_ + XX);
+            xi_shmem[it*xstride_ + YY] = x_(ai*xstride_ + YY);
+            xi_shmem[it*xstride_ + ZZ] = x_(ai*xstride_ + ZZ);
+
+            fi_shmem[it*fstride_ + XX] = 0.0;
+            fi_shmem[it*fstride_ + YY] = 0.0;
+            fi_shmem[it*fstride_ + YY] = 0.0;
 
             int cjind = cjind0;
             while (cjind < cjind1 && cj_(cjind).excl != 0xffff)
             {
                 cj = cj_(cjind).cj;
-                aj = cj * N_ + ic;
+                aj = cj * N_ + it;
+
+                fj_shmem[it*fstride_ + XX] = 0.0;
+                fj_shmem[it*fstride_ + YY] = 0.0;
+                fj_shmem[it*fstride_ + YY] = 0.0;
                 
-                xj_shmem[ic*xstride_ + XX] = x_(aj*xstride_ + XX);
-                xj_shmem[ic*xstride_ + YY] = x_(aj*xstride_ + YY);
-                xj_shmem[ic*xstride_ + ZZ] = x_(aj*xstride_ + ZZ);
+                xj_shmem[it*xstride_ + XX] = x_(aj*xstride_ + XX);
+                xj_shmem[it*xstride_ + YY] = x_(aj*xstride_ + YY);
+                xj_shmem[it*xstride_ + ZZ] = x_(aj*xstride_ + ZZ);
                 
                 //wait until all threads load their xi and xj
                 dev.team_barrier();
 
                 // each thread computes forces on its own i atom due to all j atoms in cj cluster
-                for (aj = 0; aj < N_; aj++)
+                // \todo this can be done using SIMD unit of each thread
+                for (j = 0; j < N_; j++)
                 {
-                    dx = xi_shmem[ic*xstride_ + XX] - xj_shmem[aj*xstride_ + XX];
-                    dy = xi_shmem[ic*xstride_ + YY] - xj_shmem[aj*xstride_ + YY];
-                    dz = xi_shmem[ic*xstride_ + ZZ] - xj_shmem[aj*xstride_ + ZZ];
-                }
+
+                    /* A multiply mask used to zero an interaction
+                     * when either the distance cutoff is exceeded, or
+                     * (if appropriate) the i and j indices are
+                     * unsuitable for this kind of inner loop. */
+                    real skipmask;
+
+#ifdef CHECK_EXCLS
+                    /* A multiply mask used to zero an interaction
+                     * when that interaction should be excluded
+                     * (e.g. because of bonding). */
+                    int interact;
+
+                    interact = ((cj_(cjind).excl>>(it*M_ + j)) & 1);
+#ifndef EXCL_FORCES
+                    skipmask = interact;
+#else
+                    skipmask = !(cj == ci_sh && j <= it);
+#endif
+#else
+#define interact 1.0
+                    skipmask = 1.0;
+#endif
+
+                    dx = xi_shmem[it*xstride_ + XX] - xj_shmem[j*xstride_ + XX];
+                    dy = xi_shmem[it*xstride_ + YY] - xj_shmem[j*xstride_ + YY];
+                    dz = xi_shmem[it*xstride_ + ZZ] - xj_shmem[j*xstride_ + ZZ];
+                    rsq = dx*dx + dy*dy + dz*dz;
+
+                    //\todo get rcut2 value from ic
+                    rcut2 = 0.9 * 0.9;
+                    /* Prepare to enforce the cut-off. */
+                    skipmask = (rsq >= rcut2) ? 0 : skipmask;
+                    /* 9 flops for r^2 + cut-off check */
+
+#ifdef CHECK_EXCLS
+                    /* Excluded atoms are allowed to be on top of each other.
+                     * To avoid overflow of rinv, rinvsq and rinvsix
+                     * we add a small number to rsq for excluded pairs only.
+                     */
+                    rsq += (1 - interact)*NBNXN_AVOID_SING_R2_INC;
+#endif
+
+                    // \todo make sure gmx_invsqrt is callable from kokkos functor
+                    rinv = gmx_invsqrt(rsq);
+                    /* 5 flops for invsqrt */
+
+                    /* Partially enforce the cut-off (and perhaps
+                     * exclusions) to avoid possible overflow of
+                     * rinvsix when computing LJ, and/or overflowing
+                     * the Coulomb table during lookup. */
+                    rinv = rinv * skipmask;
+
+                    rinvsq  = rinv*rinv;
+
+                    // \todo load c6 and c12 from nbfp
+                    c6      = 0.26187E-02;   //nbfp[type_i_off+type[aj]*2  ];
+                    c12     = 0.26307E-05;   //nbfp[type_i_off+type[aj]*2+1];
+
+                    rinvsix = interact*rinvsq*rinvsq*rinvsq;
+                    FrLJ6   = c6*rinvsix;
+                    FrLJ12  = c12*rinvsix*rinvsix;
+                    frLJ    = FrLJ12 - FrLJ6;
+
+                    fscal = frLJ*rinvsq;
+
+                    fx = fscal*dx;
+                    fy = fscal*dy;
+                    fz = fscal*dz;
+
+                    /* Increment i-atom force */
+                    fi_shmem[it*fstride_ + XX] += fx;
+                    fi_shmem[it*fstride_ + YY] += fy;
+                    fi_shmem[it*fstride_ + ZZ] += fz;
+
+                    // /* Decrement j-atom force */
+                    // do atomically: since all the threads write to fj_shmem
+                    Kokkos::atomic_add(&fj_shmem[j*fstride_ + XX], -1.0*fx);
+                    Kokkos::atomic_add(&fj_shmem[j*fstride_ + YY], -1.0*fy);
+                    Kokkos::atomic_add(&fj_shmem[j*fstride_ + ZZ], -1.0*fz);
+                    
+                } // loop over j atoms
 
                 cjind++;
 
-            }
+                f_(aj*fstride_ + XX) += fj_shmem[it*fstride_ + XX];
+                f_(aj*fstride_ + YY) += fj_shmem[it*fstride_ + YY];
+                f_(aj*fstride_ + ZZ) += fj_shmem[it*fstride_ + ZZ];
+
+            } // loop over cj
+
+            f_(ai*fstride_ + XX) += fi_shmem[it*fstride_ + XX];
+            f_(ai*fstride_ + YY) += fi_shmem[it*fstride_ + YY];
+            f_(ai*fstride_ + ZZ) += fi_shmem[it*fstride_ + ZZ];
             
-        }
+        } // loop over ci
 
     }
 
     size_t team_shmem_size (int team_size) const {
-        return sizeof(real ) * (M_* xstride_ + N_ * xstride_);
+        return sizeof(real ) * (M_* xstride_ + N_ * xstride_ +
+                                M_* fstride_ + N_ * fstride_);
     }
 
 };
@@ -239,81 +351,41 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 
     int                nnbl;
     nbnxn_pairlist_t **nbl;
-    int                coulkt, vdwkt = 0;
     int                nb;
     int                nthreads gmx_unused;
+
+    nbnxn_atomdata_output_t *out;
+    real                    *fshift_p;
 
     nnbl = nbl_list->nnbl;
     nbl  = nbl_list->nbl;
 
-    if (EEL_RF(ic->eeltype) || ic->eeltype == eelCUT)
+    out = &nbat->out[0];
+    nb = 0; // single neighborlist for kokkos kernel
+    if (clearF == enbvClearFYes)
     {
-        coulkt = coulktRF;
+        clear_f(nbat, nb, out->f);
+    }
+
+    if ((force_flags & GMX_FORCE_VIRIAL) && nnbl == 1)
+    {
+        fshift_p = fshift;
     }
     else
     {
-        if (ewald_excl == ewaldexclTable)
+        fshift_p = out->fshift;
+
+        if (clearF == enbvClearFYes)
         {
-            if (ic->rcoulomb == ic->rvdw)
-            {
-                coulkt = coulktTAB;
-            }
-            else
-            {
-                coulkt = coulktTAB_TWIN;
-            }
-        }
-        else
-        {
-            if (ic->rcoulomb == ic->rvdw)
-            {
-                coulkt = coulktEWALD;
-            }
-            else
-            {
-                coulkt = coulktEWALD_TWIN;
-            }
+            clear_fshift(fshift_p);
         }
     }
 
-    if (ic->vdwtype == evdwCUT)
-    {
-        switch (ic->vdw_modifier)
-        {
-        case eintmodNONE:
-        case eintmodPOTSHIFT:
-            switch (nbat->comb_rule)
-            {
-            case ljcrGEOM: vdwkt = vdwktLJCUT_COMBGEOM; break;
-            case ljcrLB:   vdwkt = vdwktLJCUT_COMBLB;   break;
-            case ljcrNONE: vdwkt = vdwktLJCUT_COMBNONE; break;
-            default:       gmx_incons("Unknown combination rule");
-            }
-            break;
-        case eintmodFORCESWITCH:
-            vdwkt = vdwktLJFORCESWITCH;
-            break;
-        case eintmodPOTSWITCH:
-            vdwkt = vdwktLJPOTSWITCH;
-            break;
-        default:
-            gmx_incons("Unsupported VdW interaction modifier");
-        }
-    }
-    else if (ic->vdwtype == evdwPME)
-    {
-        if (ic->ljpme_comb_rule == eljpmeLB)
-        {
-            gmx_incons("The nbnxn Kokkos kernel doesn't suport LJ-PME with LB");
-        }
-        vdwkt = vdwktLJEWALDCOMBGEOM;
-    }
-    else
-    {
-        gmx_incons("Unsupported VdW interaction type");
-    }
+    // initialize unmanaged f view from out->f
+    nbat->kk_nbat->h_un_f =  HAT::t_un_real_1d(out->f, nbat->nalloc * nbat->fstride);
 
-    printf("Number of neighborlists is %d\n", nnbl);
+    // initialize unmanaged q view from nbat->
+    nbat->kk_nbat->h_un_q = HAT::t_un_real_1d(nbat->q, nbat->nalloc);
 
     nthreads = gmx_omp_nthreads_get(emntNonbonded);
 
@@ -334,59 +406,35 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 
     typedef nbnxn_kokkos_kernel_functor f_type;
     f_type nb_f(nbat->kk_nbat->d_x,
+                nbat->kk_nbat->h_un_q,
                 nbl[0]->kk_plist->h_un_ci,
-                nbl[0]->kk_plist->h_un_cj,nci_team);
+                nbl[0]->kk_plist->h_un_cj,
+                nbat->kk_nbat->h_un_f,
+                nci_team);
 
-    Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
+
+    //    Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
     Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize);
 
     // printf("\n number of threads per team %d\n", teamsize);
     // printf("\n number of teams %d\n", nteams);
     // printf("\n number of i clusters %d\n", nbl[0]->nci);
 
-    // launch kernel
-    Kokkos::parallel_for(config,nb_f);
-
-
-    // for (nb = 0; nb < nnbl; nb++)
+    // if (!(force_flags & GMX_FORCE_ENERGY))
     // {
-    //     nbnxn_atomdata_output_t *out;
-    //     real                    *fshift_p;
+        /* Don't calculate energies */
+        //     p_nbk_noener[coulkt][vdwkt](nbl[nb], nbat,
+        //                                 ic,
+        //                                 shift_vec,
+        //                                 out->f,
+        //                                 fshift_p);
 
-    //     out = &nbat->out[nb];
-
-    //     if (clearF == enbvClearFYes)
-    //     {
-    //         // clear_f(nbat, nb, out->f);
-    //     }
-
-    //     if ((force_flags & GMX_FORCE_VIRIAL) && nnbl == 1)
-    //     {
-    //         fshift_p = fshift;
-    //     }
-    //     else
-    //     {
-    //         fshift_p = out->fshift;
-
-    //         if (clearF == enbvClearFYes)
-    //         {
-    //             // clear_fshift(fshift_p);
-    //         }
-    //     }
-
-    //     // if (!(force_flags & GMX_FORCE_ENERGY))
-    //     // {
-    //     //     /* Don't calculate energies */
-    //     //     p_nbk_noener[coulkt][vdwkt](nbl[nb], nbat,
-    //     //                                 ic,
-    //     //                                 shift_vec,
-    //     //                                 out->f,
-    //     //                                 fshift_p);
-    //     // }
-    //     // else
-    //     // {
-    //     //     gmx_incons("nbnxn Kokkos kernel doesn't yet support energy calculations.");
-    //     // }
+        // launch kernel
+        Kokkos::parallel_for(config,nb_f);
+    // }
+    // else
+    // {
+    //     gmx_incons("nbnxn Kokkos kernel doesn't yet support energy calculations.");
     // }
 
 }
