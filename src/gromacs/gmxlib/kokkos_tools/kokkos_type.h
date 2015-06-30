@@ -116,6 +116,9 @@ struct ArrayTypes<GMXDeviceType> {
     // 1d unmanaged view for real array n with right layout
     typedef Kokkos::View<real*, Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> t_un_real_1d;
 
+    // 1d unmanaged and atomic view for real array n with right layout
+    typedef Kokkos::View<real*, Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged | Kokkos::Atomic>> t_un_at_real_1d;
+
     // pairlist related views
 
     // i-cluster list
@@ -201,6 +204,9 @@ struct ArrayTypes<GMXHostType> {
 
     // 1d unmanaged view for real array n with right layout
     typedef Kokkos::View<real*, Kokkos::LayoutRight, GMXHostType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> t_un_real_1d;
+
+    // 1d unmanaged and atomic view for real array n with right layout
+    typedef Kokkos::View<real*, Kokkos::LayoutRight, GMXHostType, Kokkos::MemoryTraits<Kokkos::Unmanaged | Kokkos::Atomic>> t_un_at_real_1d;
 
     // pairlist related views
 

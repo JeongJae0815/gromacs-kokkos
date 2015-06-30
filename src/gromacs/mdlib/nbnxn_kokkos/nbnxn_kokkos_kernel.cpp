@@ -111,7 +111,8 @@ struct nbnxn_kokkos_kernel_functor
     const HAT::t_un_real_1d q_;
     const HAT::t_un_ci_1d ci_;
     const HAT::t_un_cj_1d cj_;
-    const HAT::t_un_real_1d f_;
+    // atomic because more than one thread may write into same location
+    const HAT::t_un_at_real_1d f_;
 
     const int nci_team_;
 
@@ -122,13 +123,19 @@ struct nbnxn_kokkos_kernel_functor
     const int xstride_ = 3;
     const int fstride_ = 3;
 
+    const real rcut2_;
+    const real facel_;
+
     nbnxn_kokkos_kernel_functor (const DAT::t_real_1d x,
                                  const HAT::t_un_real_1d q,
                                  const HAT::t_un_ci_1d ci,
                                  const HAT::t_un_cj_1d cj,
                                  const HAT::t_un_real_1d f,
-                                 const int nci_team):
-        x_(x),q_(q),ci_(ci),cj_(cj),f_(f),nci_team_(nci_team)
+                                 const int nci_team,
+                                 const real rcut2,
+                                 const real facel):
+        x_(x),q_(q),ci_(ci),cj_(cj),f_(f),
+        nci_team_(nci_team),rcut2_(rcut2),facel_(facel)
     {
 
     };
@@ -176,12 +183,15 @@ struct nbnxn_kokkos_kernel_functor
 
         size_t x_size = M_*xstride_*sizeof(real);
         size_t f_size = M_*fstride_*sizeof(real);
+        size_t q_size = M_*sizeof(real);
 
         real* xi_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
         real* xj_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
         real* fi_shmem = (real * ) dev.team_shmem().get_shmem(f_size);
         real* fj_shmem = (real * ) dev.team_shmem().get_shmem(f_size);
-        
+        real* qi_shmem = (real * ) dev.team_shmem().get_shmem(q_size);
+        real* qj_shmem = (real * ) dev.team_shmem().get_shmem(q_size);
+
         const int ciind0 = dev.league_rank() * nci_team_;
         const int ciind1 = ciind0 + nci_team_;
 
@@ -205,10 +215,12 @@ struct nbnxn_kokkos_kernel_functor
             xi_shmem[it*xstride_ + XX] = x_(ai*xstride_ + XX);
             xi_shmem[it*xstride_ + YY] = x_(ai*xstride_ + YY);
             xi_shmem[it*xstride_ + ZZ] = x_(ai*xstride_ + ZZ);
-
+            
+            qi_shmem[it] = facel_ * q_(ai);
+            
             fi_shmem[it*fstride_ + XX] = 0.0;
             fi_shmem[it*fstride_ + YY] = 0.0;
-            fi_shmem[it*fstride_ + YY] = 0.0;
+            fi_shmem[it*fstride_ + ZZ] = 0.0;
 
             int cjind = cjind0;
             while (cjind < cjind1 && cj_(cjind).excl != 0xffff)
@@ -218,12 +230,14 @@ struct nbnxn_kokkos_kernel_functor
 
                 fj_shmem[it*fstride_ + XX] = 0.0;
                 fj_shmem[it*fstride_ + YY] = 0.0;
-                fj_shmem[it*fstride_ + YY] = 0.0;
+                fj_shmem[it*fstride_ + ZZ] = 0.0;
                 
                 xj_shmem[it*xstride_ + XX] = x_(aj*xstride_ + XX);
                 xj_shmem[it*xstride_ + YY] = x_(aj*xstride_ + YY);
                 xj_shmem[it*xstride_ + ZZ] = x_(aj*xstride_ + ZZ);
-                
+
+                qj_shmem[it] = q_(aj);
+
                 //wait until all threads load their xi and xj
                 dev.team_barrier();
 
@@ -260,10 +274,8 @@ struct nbnxn_kokkos_kernel_functor
                     dz = xi_shmem[it*xstride_ + ZZ] - xj_shmem[j*xstride_ + ZZ];
                     rsq = dx*dx + dy*dy + dz*dz;
 
-                    //\todo get rcut2 value from ic
-                    rcut2 = 0.9 * 0.9;
                     /* Prepare to enforce the cut-off. */
-                    skipmask = (rsq >= rcut2) ? 0 : skipmask;
+                    skipmask = (rsq >= rcut2_) ? 0 : skipmask;
                     /* 9 flops for r^2 + cut-off check */
 
 #ifdef CHECK_EXCLS
@@ -314,11 +326,16 @@ struct nbnxn_kokkos_kernel_functor
                     
                 } // loop over j atoms
 
-                cjind++;
+                //wait until all threads computed their forces btw i and j in current cj
+                dev.team_barrier();
 
                 f_(aj*fstride_ + XX) += fj_shmem[it*fstride_ + XX];
                 f_(aj*fstride_ + YY) += fj_shmem[it*fstride_ + YY];
                 f_(aj*fstride_ + ZZ) += fj_shmem[it*fstride_ + ZZ];
+
+                dev.team_barrier();
+
+                cjind++;
 
             } // loop over cj
 
@@ -331,8 +348,10 @@ struct nbnxn_kokkos_kernel_functor
     }
 
     size_t team_shmem_size (int team_size) const {
-        return sizeof(real ) * (M_* xstride_ + N_ * xstride_ +
-                                M_* fstride_ + N_ * fstride_);
+        return sizeof(real ) * (M_* xstride_ + N_ * xstride_ + // xi + xj size
+                                M_* fstride_ + N_ * fstride_ + // fi + fj size
+                                M_ + N_ // qi + qj size
+                                );
     }
 
 };
@@ -410,8 +429,9 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
                 nbl[0]->kk_plist->h_un_ci,
                 nbl[0]->kk_plist->h_un_cj,
                 nbat->kk_nbat->h_un_f,
-                nci_team);
-
+                nci_team,
+                ic->rcoulomb*ic->rcoulomb,
+                ic->epsfac);
 
     //    Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
     Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize);
@@ -436,6 +456,11 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
     // {
     //     gmx_incons("nbnxn Kokkos kernel doesn't yet support energy calculations.");
     // }
+
+        // deallocate unmanaged views
+        nbat->kk_nbat->h_un_f =  HAT::t_un_real_1d();
+        nbat->kk_nbat->h_un_q = HAT::t_un_real_1d();
+
 
 }
 
