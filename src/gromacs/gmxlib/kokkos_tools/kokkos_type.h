@@ -103,6 +103,9 @@ struct ArrayTypes<GMXDeviceType> {
     typedef tdual_int_1d::t_dev_const_um t_int_1d_const_um;
     typedef tdual_int_1d::t_dev_const_randomread t_int_1d_randomread;
 
+    // 1d unmanaged view for int array n with right layout
+    typedef Kokkos::View<int*, Kokkos::LayoutRight, GMXDeviceType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> t_un_int_1d;
+
     // 1d real array n with right layout
     // real is float in single precision and double in double precision
     // using right layout because the view is initialized from exiting arrays in hostspace with rightlayout
@@ -191,6 +194,9 @@ struct ArrayTypes<GMXHostType> {
     typedef tdual_int_1d::t_host_um t_int_1d_um;
     typedef tdual_int_1d::t_host_const_um t_int_1d_const_um;
     typedef tdual_int_1d::t_host_const_randomread t_int_1d_randomread;
+
+    // 1d unmanaged view for int array n with right layout
+    typedef Kokkos::View<int*, Kokkos::LayoutRight, GMXHostType, Kokkos::MemoryTraits<Kokkos::Unmanaged>> t_un_int_1d;
 
     // 1d real array n with right layout
     // real is float in single precision and double in double precision

@@ -61,10 +61,16 @@ extern "C" {
         DAT::t_real_1d           d_x;         /* device view for x            */
         HAT::t_real_1d           h_x;         /* host view for x              */
 
+        HAT::t_un_real_1d        h_un_x;      /* unmanaged host view for x    */
         HAT::t_un_real_1d        h_un_f;      /* unmanaged host view for f    */
         HAT::t_un_real_1d        h_un_q;      /* unmanaged host view for q    */
+
+
+        HAT::t_un_int_1d         h_un_type;   /* unmanaged host view for atom types */
         HAT::t_un_real_1d        h_un_nbfp;   /* unmanaged host view for Lennard-Jones
                                                  6*C6 and 12*C12 params, size ntype^2*2  */
+
+        HAT::t_un_real_1d        h_un_Ftab;   /* unmanaged host view for Coulomb force table */
 
     };
 
