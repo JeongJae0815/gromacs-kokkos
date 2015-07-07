@@ -1211,15 +1211,15 @@ void fill_cell(const nbnxn_search_t nbs,
         nbs->cell[nbs->a[a]] = a;
     }
 
-#ifdef GMX_KOKKOS
-    copy_rvec_to_nbat_real_kokkos(nbs->a+a0, a1-a0, grid->na_c, x,
-                                  nbat->XFormat, nbat, a0,
-                                  sx, sy, sz);
-#else
+/* #ifdef GMX_KOKKOS */
+/*     copy_rvec_to_nbat_real_kokkos(nbs->a+a0, a1-a0, grid->na_c, x, */
+/*                                   nbat->XFormat, nbat, a0, */
+/*                                   sx, sy, sz); */
+/* #else */
     copy_rvec_to_nbat_real(nbs->a+a0, a1-a0, grid->na_c, x,
                            nbat->XFormat, nbat->x, a0,
                            sx, sy, sz);
-#endif
+/* #endif */
 
     if (nbat->XFormat == nbatX4)
     {
@@ -1886,11 +1886,11 @@ void nbnxn_put_on_grid(nbnxn_search_t nbs,
     /* We need padding up to a multiple of the buffer flag size: simply add */
     if (nc_max*grid->na_sc + NBNXN_BUFFERFLAG_SIZE > nbat->nalloc)
     {
-        if(nb_kernel_type==nbnxn_Kokkos)
-        {
-            nbnxn_atomdata_realloc_kokkos(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
-        }
-        else
+        /* if(nb_kernel_type==nbnxn_Kokkos) */
+        /* { */
+        /*     nbnxn_atomdata_realloc_kokkos(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE); */
+        /* } */
+        /* else */
         {
             nbnxn_atomdata_realloc(nbat, nc_max*grid->na_sc+NBNXN_BUFFERFLAG_SIZE);
         }
@@ -2586,7 +2586,9 @@ void nbnxn_init_pairlist_set(nbnxn_pairlist_set_t *nbl_list,
     nbl_list->bSimple   = bSimple;
     nbl_list->bCombined = bCombined;
 
-    nbl_list->nnbl = gmx_omp_nthreads_get(emntNonbonded);
+    // \todo for kokkos find out the way to merge nnbl neighborlists into one
+    // for now hardcoding nnbl=1
+    nbl_list->nnbl = 1;//gmx_omp_nthreads_get(emntNonbonded);
 
     if (!nbl_list->bCombined &&
         nbl_list->nnbl > NBNXN_BUFFERFLAG_MAX_THREADS)
@@ -5134,11 +5136,11 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
 
                     if (nbl->bSimple)
                     {
-                        if (nb_kernel_type == nbnxn_Kokkos)
-                        {
-                            new_ci_entry_kokkos(nbl, cell0_i+ci, shift, flags_i[ci]);
-                        }
-                        else
+                        /* if (nb_kernel_type == nbnxn_Kokkos) */
+                        /* { */
+                        /*     new_ci_entry_kokkos(nbl, cell0_i+ci, shift, flags_i[ci]); */
+                        /* } */
+                        /* else */
                         {
                             new_ci_entry(nbl, cell0_i+ci, shift, flags_i[ci]);
                         }
@@ -5311,6 +5313,7 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
                                     switch (nb_kernel_type)
                                     {
                                     case nbnxnk4x4_PlainC:
+                                    case nbnxn_Kokkos:
                                         check_subcell_list_space_simple(nbl, cl-cf+1);
                                         make_cluster_list_simple(gridj,
                                                                  nbl, ci, cf, cl,
@@ -5320,15 +5323,15 @@ static void nbnxn_make_pairlist_part(const nbnxn_search_t nbs,
                                                                  &ndistc);
                                         break;
 
-                                    case nbnxn_Kokkos:
-                                        check_subcell_list_space_simple_kokkos(nbl, cl-cf+1);
-                                        make_cluster_list_simple(gridj,
-                                                                 nbl, ci, cf, cl,
-                                                                 (gridi == gridj && shift == CENTRAL),
-                                                                 nbat->x,
-                                                                 rl2, rbb2,
-                                                                 &ndistc);
-                                        break;
+                                    /* case nbnxn_Kokkos: */
+                                    /*     check_subcell_list_space_simple_kokkos(nbl, cl-cf+1); */
+                                    /*     make_cluster_list_simple(gridj, */
+                                    /*                              nbl, ci, cf, cl, */
+                                    /*                              (gridi == gridj && shift == CENTRAL), */
+                                    /*                              nbat->x, */
+                                    /*                              rl2, rbb2, */
+                                    /*                              &ndistc); */
+                                    /*     break; */
 #ifdef GMX_NBNXN_SIMD_4XN
                                     case nbnxnk4xN_SIMD_4xN:
                                         check_subcell_list_space_simple(nbl, ci_to_cj(na_cj_2log, cl-cf)+2);

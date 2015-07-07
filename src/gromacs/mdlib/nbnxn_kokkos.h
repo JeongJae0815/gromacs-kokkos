@@ -58,7 +58,7 @@ extern "C" {
 
     KOKKOS_FUNC_QUALIFIER
     void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      gmx_unused *nbl_list,
-                                    const nbnxn_atomdata_t    gmx_unused *nbat,
+                                    nbnxn_atomdata_t    gmx_unused *nbat,
                                     const interaction_const_t gmx_unused *ic,
                                     int                       gmx_unused  ewald_excl,
                                     rvec                      gmx_unused *shift_vec,

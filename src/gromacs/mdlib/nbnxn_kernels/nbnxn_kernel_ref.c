@@ -316,10 +316,21 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                          out->Vvdw,
                                          out->Vc);
         }
+
+    /* // print forces */
+    /* printf("Total forces\n"); */
+    /* int i = 1000; */
+    /* /\* for ( i = 0; i < nbat->nalloc; i++) *\/ */
+    /* { */
+    /*     printf("i = %d, fx = %lf\n", i, out->f[i*3+XX]); */
+    /*     printf("i = %d, fy = %lf\n", i, out->f[i*3+YY]); */
+    /*     printf("i = %d, fz = %lf\n", i, out->f[i*3+ZZ]); */
+    /* } */
     }
 
     if (force_flags & GMX_FORCE_ENERGY)
     {
         reduce_energies_over_lists(nbat, nnbl, Vvdw, Vc);
     }
+
 }

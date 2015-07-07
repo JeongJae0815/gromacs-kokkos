@@ -489,6 +489,7 @@ static void do_nb_verlet(t_forcerec *fr,
     switch (nbvg->kernel_type)
     {
     case nbnxnk4x4_PlainC:
+        printf("\n PlainC kernel launch \n");
         nbnxn_kernel_ref(&nbvg->nbl_lists,
                          nbvg->nbat, ic,
                          fr->shift_vec,
@@ -912,12 +913,12 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         if (nbv->ngrp == 1 ||
             nbv->grp[eintNonlocal].nbat == nbv->grp[eintLocal].nbat)
         {
-            if (bUseKokkos)
-            {
-                nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatAll,
-                                          nbv->nbs, mdatoms, fr->cginfo);
-            }
-            else
+            // if (bUseKokkos)
+            // {
+            //     nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatAll,
+            //                               nbv->nbs, mdatoms, fr->cginfo);
+            // }
+            // else
             {
                 nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatAll,
                                    nbv->nbs, mdatoms, fr->cginfo);
@@ -925,14 +926,14 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
         }
         else
         {
-            if( bUseKokkos)
-            {
-                nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatLocal,
-                                          nbv->nbs, mdatoms, fr->cginfo);
-                nbnxn_atomdata_set_kokkos(nbv->grp[eintNonlocal].nbat, eatAll,
-                                          nbv->nbs, mdatoms, fr->cginfo);
-            }
-            else
+            // if( bUseKokkos)
+            // {
+            //     nbnxn_atomdata_set_kokkos(nbv->grp[eintLocal].nbat, eatLocal,
+            //                               nbv->nbs, mdatoms, fr->cginfo);
+            //     nbnxn_atomdata_set_kokkos(nbv->grp[eintNonlocal].nbat, eatAll,
+            //                               nbv->nbs, mdatoms, fr->cginfo);
+            // }
+            // else
             {
                 nbnxn_atomdata_set(nbv->grp[eintLocal].nbat, eatLocal,
                                    nbv->nbs, mdatoms, fr->cginfo);
@@ -982,11 +983,11 @@ void do_force_cutsVERLET(FILE *fplog, t_commrec *cr,
                                     eintLocal);
         }
 
-        if (bUseKokkos)
-        {
-            /* sync pair-list kokkos views */
-            nbnxn_kokkos_sync_pairlist(&nbv->grp[eintLocal].nbl_lists);
-        }
+        // if (bUseKokkos)
+        // {
+        //     /* sync pair-list kokkos views */
+        //     nbnxn_kokkos_sync_pairlist(&nbv->grp[eintLocal].nbl_lists);
+        // }
         wallcycle_stop(wcycle, ewcNS);
     }
     else

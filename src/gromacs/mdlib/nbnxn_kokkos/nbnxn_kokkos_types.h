@@ -72,6 +72,8 @@ extern "C" {
 
         HAT::t_un_real_1d        h_un_Ftab;   /* unmanaged host view for Coulomb force table */
 
+        HAT::t_un_real_1d        h_un_shiftvec; /* unmanaged host view for shift vector */
+
     };
 
     struct kokkos_pairlist_t

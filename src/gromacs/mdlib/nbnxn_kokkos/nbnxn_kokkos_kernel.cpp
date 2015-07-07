@@ -58,6 +58,7 @@
 #include "gromacs/mdlib/nbnxn_kokkos.h"
 #include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_common.h"
 #include "gromacs/utility/fatalerror.h"
+#include "gromacs/utility/smalloc.h"
 #include "gromacs/pbcutil/ishift.h"
 
 #include "nbnxn_kokkos_types.h"
@@ -66,13 +67,13 @@
 #define X_STRIDE   3
 #define F_STRIDE   3
 
+/* For Kokkos, for now, using cluster sizes same as CPU i.e. 4 */
 #define NBNXN_KOKKOS_CLUSTER_I_SIZE NBNXN_CPU_CLUSTER_I_SIZE // 4
 #define NBNXN_KOKKOS_CLUSTER_J_SIZE NBNXN_CPU_CLUSTER_I_SIZE // 4
 
 // transfer data from host-to-device if the data on the host is modified
 void kokkos_sync_h2d (kokkos_atomdata_t*  kk_nbat,const kokkos_pairlist_t* kk_plist)
 {
-
     kk_nbat->k_x.sync<GMXDeviceType>();
     kk_nbat->d_x = kk_nbat->k_x.d_view;
     kk_nbat->h_x = kk_nbat->k_x.h_view;
@@ -82,16 +83,12 @@ void kokkos_sync_h2d (kokkos_atomdata_t*  kk_nbat,const kokkos_pairlist_t* kk_pl
     // kk_plist->k_cj.sync<GMXDeviceType>();
     // kk_plist->k_cj4.sync<GMXDeviceType>();
     // kk_plist->k_excl.sync<GMXDeviceType>();
-
-
 }
 
 // transfer data from device-to-host if the data on the device is modified
 void kokkos_sync_d2h (kokkos_atomdata_t*  kk_nbat,const kokkos_pairlist_t* kk_plist)
 {
-
     //    kk_nbat->k_f.sync<GMXHosType>();
-
 }
 
 struct nbnxn_kokkos_kernel_functor
@@ -101,19 +98,20 @@ struct nbnxn_kokkos_kernel_functor
 
     // list of structures needed for non-bonded interactions
     //    const DAT::t_real_1d   x_;
-    const HAT::t_un_real_1d x_;
-    const HAT::t_un_real_1d q_;
-    const HAT::t_un_int_1d type_;
-    const HAT::t_un_real_1d nbfp_;
-    const HAT::t_un_ci_1d ci_;
-    const HAT::t_un_cj_1d cj_;
+    HAT::t_un_real_1d x_;
+    HAT::t_un_real_1d q_;
+    HAT::t_un_int_1d type_;
+    HAT::t_un_real_1d nbfp_;
+    HAT::t_un_ci_1d ci_;
+    HAT::t_un_cj_1d cj_;
     // atomic because more than one thread may write into same location
-    const HAT::t_un_at_real_1d f_;
-    const HAT::t_un_at_real_1d Ftab_;
+    HAT::t_un_at_real_1d f_;
+    HAT::t_un_real_1d Ftab_;
+    HAT::t_un_real_1d shiftvec_;
 
     const int nci_team_;
-    int ntype_;
-    real rcut2_, facel_, tabq_scale_;
+    const real rcut2_, facel_, tabq_scale_;
+    const int ntype_;
 
     nbnxn_kokkos_kernel_functor (const HAT::t_un_real_1d &x,
                                  const HAT::t_un_real_1d &q,
@@ -123,12 +121,13 @@ struct nbnxn_kokkos_kernel_functor
                                  const HAT::t_un_cj_1d &cj,
                                  const HAT::t_un_real_1d &f,
                                  const HAT::t_un_real_1d &Ftab,
+                                 const HAT::t_un_real_1d &shiftvec,
                                  const int &nci_team,
                                  const real &rcut2,
                                  const real &facel,
                                  const real &tabq_scale,
                                  const int &ntype):
-        x_(x),q_(q),type_(type),nbfp_(nbfp),ci_(ci),cj_(cj),f_(f),Ftab_(Ftab),
+        x_(x),q_(q),type_(type),nbfp_(nbfp),ci_(ci),cj_(cj),f_(f),Ftab_(Ftab),shiftvec_(shiftvec),
         nci_team_(nci_team),rcut2_(rcut2),facel_(facel),tabq_scale_(tabq_scale),ntype_(ntype)
     {
 
@@ -139,25 +138,19 @@ struct nbnxn_kokkos_kernel_functor
 
     };
 
-    KOKKOS_FUNCTION
-    real compute_item(const typename Kokkos::TeamPolicy<device_type>::member_type& dev) const
-    {
-        return 0.0;
-    }
-
     // with thread teams
     KOKKOS_INLINE_FUNCTION
     void operator()(const  typename Kokkos::TeamPolicy<device_type>::member_type& dev) const
     {
 
-        // print team information
+        //        print team information
         // if (dev.league_rank() == 0)
         // {
         //     printf("There are %d teams\n", dev.league_size());
         //     printf("There are %d threads per team\n", dev.team_size());
         // }
 
-        //        printf("My team.thread id is %d . %d \n",dev.league_rank(),dev.team_rank());
+        // printf("My team.thread id is %d . %d \n",dev.league_rank(),dev.team_rank());
 
         int ai, aj;
         int i, j;
@@ -204,6 +197,7 @@ struct nbnxn_kokkos_kernel_functor
         for (n = ciind0; n < ciind1; n++)
         {
 
+            // \todo here NBNXN_CI_SHIFT=127, find out is this the right multiplier for kokkos kernel
             ish              = (ci_(n).shift & NBNXN_CI_SHIFT);
             /* x, f and fshift are assumed to be stored with stride 3 */
             ishf             = ish*DIM;
@@ -216,9 +210,9 @@ struct nbnxn_kokkos_kernel_functor
             // each thread loads its i atom from ci cluster into shared memory
             ai = ci * NBNXN_KOKKOS_CLUSTER_I_SIZE + it;
             i_type = ntype_*2*type_(ai);
-            xi_shmem[it*X_STRIDE + XX] = x_(ai*X_STRIDE + XX);
-            xi_shmem[it*X_STRIDE + YY] = x_(ai*X_STRIDE + YY);
-            xi_shmem[it*X_STRIDE + ZZ] = x_(ai*X_STRIDE + ZZ);
+            xi_shmem[it*X_STRIDE + XX] = x_(ai*X_STRIDE + XX) + shiftvec_(ishf + XX);
+            xi_shmem[it*X_STRIDE + YY] = x_(ai*X_STRIDE + YY) + shiftvec_(ishf + YY);
+            xi_shmem[it*X_STRIDE + ZZ] = x_(ai*X_STRIDE + ZZ) + shiftvec_(ishf + ZZ);
             
             qi_shmem[it] = facel_ * q_(ai);
             
@@ -229,150 +223,31 @@ struct nbnxn_kokkos_kernel_functor
             int cjind = cjind0;
             while (cjind < cjind1 && cj_(cjind).excl != 0xffff)
             {
-                cj = cj_(cjind).cj;
-                aj = cj * NBNXN_KOKKOS_CLUSTER_J_SIZE + it;
 
-                fj_shmem[it*F_STRIDE + XX] = 0.0;
-                fj_shmem[it*F_STRIDE + YY] = 0.0;
-                fj_shmem[it*F_STRIDE + ZZ] = 0.0;
-                
-                xj_shmem[it*X_STRIDE + XX] = x_(aj*X_STRIDE + XX);
-                xj_shmem[it*X_STRIDE + YY] = x_(aj*X_STRIDE + YY);
-                xj_shmem[it*X_STRIDE + ZZ] = x_(aj*X_STRIDE + ZZ);
+#define CHECK_EXCLS
 
-                qj_shmem[it] = q_(aj);
+#include "gromacs/mdlib/nbnxn_kokkos/nbnxn_kokkos_kernel_inner.h"
 
-                //wait until all threads load their xi and xj
-                dev.team_barrier();
-
-                // each thread computes forces on its own i atom due to all j atoms in cj cluster
-                // \todo this can be done using SIMD unit of each thread
-                for (j = 0; j < NBNXN_KOKKOS_CLUSTER_J_SIZE; j++)
-                {
-
-                    /* A multiply mask used to zero an interaction
-                     * when either the distance cutoff is exceeded, or
-                     * (if appropriate) the i and j indices are
-                     * unsuitable for this kind of inner loop. */
-                    real skipmask;
-
-#ifdef CHECK_EXCLS
-                    /* A multiply mask used to zero an interaction
-                     * when that interaction should be excluded
-                     * (e.g. because of bonding). */
-                    int interact;
-
-                    interact = ((cj_(cjind).excl>>(it*NBNXN_KOKKOS_CLUSTER_I_SIZE + j)) & 1);
-#ifndef EXCL_FORCES
-                    skipmask = interact;
-#else
-                    skipmask = !(cj == ci_sh && j <= it);
-#endif
-#else
-#define interact 1.0
-                    skipmask = 1.0;
-#endif
-
-                    dx = xi_shmem[it*X_STRIDE + XX] - xj_shmem[j*X_STRIDE + XX];
-                    dy = xi_shmem[it*X_STRIDE + YY] - xj_shmem[j*X_STRIDE + YY];
-                    dz = xi_shmem[it*X_STRIDE + ZZ] - xj_shmem[j*X_STRIDE + ZZ];
-                    rsq = dx*dx + dy*dy + dz*dz;
-
-                    /* Prepare to enforce the cut-off. */
-                    skipmask = (rsq >= rcut2_) ? 0 : skipmask;
-                    /* 9 flops for r^2 + cut-off check */
-
-#ifdef CHECK_EXCLS
-                    /* Excluded atoms are allowed to be on top of each other.
-                     * To avoid overflow of rinv, rinvsq and rinvsix
-                     * we add a small number to rsq for excluded pairs only.
-                     */
-                    rsq += (1 - interact)*NBNXN_AVOID_SING_R2_INC;
-#endif
-
-                    // \todo make sure gmx_invsqrt is callable from kokkos functor
-                    rinv = gmx_invsqrt(rsq);
-                    /* 5 flops for invsqrt */
-
-                    /* Partially enforce the cut-off (and perhaps
-                     * exclusions) to avoid possible overflow of
-                     * rinvsix when computing LJ, and/or overflowing
-                     * the Coulomb table during lookup. */
-                    rinv = rinv * skipmask;
-
-                    rinvsq  = rinv*rinv;
-
-                    // compute Coulomb force for Ewald type
-                    qq     = skipmask * qi_shmem[it] * qj_shmem[j];
-                    rs     = rsq*rinv*tabq_scale_;
-                    ri     = (int)rs;
-                    frac   = rs - ri;
-                    fexcl  = (1 - frac)*Ftab_(ri) + frac*Ftab_(ri+1);
-
-                    fcoul  = qq*rinv*(interact*rinvsq - fexcl);
-
-                    // compute LJ126 simple cut-off force
-                    // \todo using a combination rule may be more memory efficient
-                    j_global = (cj * NBNXN_KOKKOS_CLUSTER_J_SIZE + j)*F_STRIDE;
-                    j_type = type_(j_global);
-
-                    c6      = 0.26187E-02;   //nbfp_(i_type + j_type*2 );
-                    c12     = 0.26307E-05;   //nbfp_(i_type + j_type*2+1 );
-
-                    rinvsix = interact*rinvsq*rinvsq*rinvsq;
-                    FrLJ6   = c6*rinvsix;
-                    FrLJ12  = c12*rinvsix*rinvsix;
-                    frLJ    = FrLJ12 - FrLJ6;
-
-                    fscal = frLJ*rinvsq + fcoul;
-
-                    fx = fscal*dx;
-                    fy = fscal*dy;
-                    fz = fscal*dz;
-
-                    /* Increment i-atom force */
-                    fi_shmem[it*F_STRIDE + XX] += fx;
-                    fi_shmem[it*F_STRIDE + YY] += fy;
-                    fi_shmem[it*F_STRIDE + ZZ] += fz;
-
-                    // /* Decrement j-atom force */
-                    // do atomically: since all the threads write to fj_shmem
-                    // Kokkos::atomic_add(&fj_shmem[j*F_STRIDE + XX], -1.0*fx);
-                    // Kokkos::atomic_add(&fj_shmem[j*F_STRIDE + YY], -1.0*fy);
-                    // Kokkos::atomic_add(&fj_shmem[j*F_STRIDE + ZZ], -1.0*fz);
-
-                    // total forces on current j atom due to all i atoms in a thread team
-                    // fx_total = dev.reduce(fx);
-                    // fy_total = dev.reduce(fy);
-                    // fz_total = dev.reduce(fz);
-
-
-
-                    // Add with one thread and vectorlane of the team
-                    Kokkos::single(Kokkos::PerTeam(dev),[=] () {
-                            // atomicaly add value to global f
-                            f_(j_global + XX) -= fx_total;
-                            f_(j_global + YY) -= fy_total;
-                            f_(j_global + ZZ) -= fz_total;
-                        });
-
-                } // loop over j atoms
-
-                //wait until all threads computed their forces btw i and j in current cj
-                // dev.team_barrier();
-                // f_(aj*F_STRIDE + XX) += fj_shmem[it*F_STRIDE + XX];
-                // f_(aj*F_STRIDE + YY) += fj_shmem[it*F_STRIDE + YY];
-                // f_(aj*F_STRIDE + ZZ) += fj_shmem[it*F_STRIDE + ZZ];
-                // dev.team_barrier();
+#undef CHECK_EXCLS
 
                 cjind++;
 
             } // loop over cj
+
+            for (; (cjind < cjind1); cjind++)
+            {
+
+#include "gromacs/mdlib/nbnxn_kokkos/nbnxn_kokkos_kernel_inner.h"
+
+            }
             
+            // atomic addition
             f_(ai*F_STRIDE + XX) += fi_shmem[it*F_STRIDE + XX];
             f_(ai*F_STRIDE + YY) += fi_shmem[it*F_STRIDE + YY];
             f_(ai*F_STRIDE + ZZ) += fi_shmem[it*F_STRIDE + ZZ];
-            
+
+            // \todo add i forces to shift force array
+
         } // loop over ci
 
     }
@@ -387,7 +262,7 @@ struct nbnxn_kokkos_kernel_functor
 };
 
 void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
-                                const nbnxn_atomdata_t    *nbat,
+                                nbnxn_atomdata_t    *nbat,
                                 const interaction_const_t *ic,
                                 int                       ewald_excl,
                                 rvec                      *shift_vec,
@@ -408,6 +283,8 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 
     nnbl = nbl_list->nnbl;
     nbl  = nbl_list->nbl;
+
+    // printf("Number of neighborlist = %d", nnbl);
 
     out = &nbat->out[0];
     nb = 0; // single neighborlist for kokkos kernel
@@ -432,6 +309,11 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 
     // initialize unmanaged Kokkos host views from existing arrays on the host
 
+    if (nbat->kk_nbat == NULL)
+    {
+        snew(nbat->kk_nbat,1);    
+    }
+
     nbat->kk_nbat->h_un_x = HAT::t_un_real_1d(nbat->x, nbat->nalloc * nbat->xstride);
     nbat->kk_nbat->h_un_q = HAT::t_un_real_1d(nbat->q, nbat->nalloc);
     nbat->kk_nbat->h_un_f = HAT::t_un_real_1d(out->f, nbat->nalloc * nbat->fstride);
@@ -439,6 +321,16 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
     nbat->kk_nbat->h_un_type = HAT::t_un_int_1d(nbat->type, nbat->ntype);
     nbat->kk_nbat->h_un_nbfp = HAT::t_un_real_1d(nbat->nbfp, nbat->ntype*nbat->ntype*2);
     nbat->kk_nbat->h_un_Ftab = HAT::t_un_real_1d(ic->tabq_coul_F, ic->tabq_size);
+
+    nbat->kk_nbat->h_un_shiftvec = HAT::t_un_real_1d(shift_vec[0], SHIFTS);
+
+    if (nbl[0]->kk_plist == NULL)
+    {
+        snew(nbl[0]->kk_plist,1);    
+    }
+
+    nbl[0]->kk_plist->h_un_ci = HAT::t_un_ci_1d(nbl[0]->ci,nbl[0]->ci_nalloc);
+    nbl[0]->kk_plist->h_un_cj = HAT::t_un_cj_1d(nbl[0]->cj,nbl[0]->cj_nalloc);
 
     nthreads = gmx_omp_nthreads_get(emntNonbonded);
 
@@ -449,7 +341,7 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
     }
 
     // transfer data from host to device
-    kokkos_sync_h2d(nbat->kk_nbat, nbl[0]->kk_plist);
+    // kokkos_sync_h2d(nbat->kk_nbat, nbl[0]->kk_plist);
 
     // initialize Kokkos functor
 
@@ -466,13 +358,14 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
                 nbl[0]->kk_plist->h_un_cj,
                 nbat->kk_nbat->h_un_f,
                 nbat->kk_nbat->h_un_Ftab,
+                nbat->kk_nbat->h_un_shiftvec,
                 nci_team,
                 ic->rcoulomb*ic->rcoulomb,
                 ic->epsfac,
                 ic->tabq_scale,
                 nbat->ntype);
 
-    //    Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
+    // Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
     Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize);
 
     // printf("\n number of threads per team %d\n", teamsize);
@@ -481,30 +374,38 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 
     // if (!(force_flags & GMX_FORCE_ENERGY))
     // {
-        /* Don't calculate energies */
-        //     p_nbk_noener[coulkt][vdwkt](nbl[nb], nbat,
-        //                                 ic,
-        //                                 shift_vec,
-        //                                 out->f,
-        //                                 fshift_p);
+    /* Don't calculate energies */
+    //     p_nbk_noener[coulkt][vdwkt](nbl[nb], nbat,
+    //                                 ic,
+    //                                 shift_vec,
+    //                                 out->f,
+    //                                 fshift_p);
 
-        // launch kernel
-        Kokkos::parallel_for(config,nb_f);
-        // for now, wait until parallel_for finishes
-        Kokkos::fence();
+    // launch kernel
+    Kokkos::parallel_for(config,nb_f);
+    // for now, wait until parallel_for finishes
+    Kokkos::fence();
     // }
     // else
     // {
     //     gmx_incons("nbnxn Kokkos kernel doesn't yet support energy calculations.");
     // }
 
-        // deallocate unmanaged views
-        nbat->kk_nbat->h_un_f =  HAT::t_un_real_1d();
-        nbat->kk_nbat->h_un_q = HAT::t_un_real_1d();
+    // // print forces
+    // printf("Total forces\n");
+    // int i = 1000;
+    // // for ( i = 0; i < nbat->nalloc; i++)
+    // {
+    //     printf("i = %d, fx = %lf\n", i, out->f[i*F_STRIDE+XX]);
+    //     printf("i = %d, fy = %lf\n", i, out->f[i*F_STRIDE+YY]);
+    //     printf("i = %d, fz = %lf\n", i, out->f[i*F_STRIDE+ZZ]);
+    // }
+    // deallocate unmanaged views
+    nbat->kk_nbat->h_un_f =  HAT::t_un_real_1d();
+    nbat->kk_nbat->h_un_q = HAT::t_un_real_1d();
 
 
 }
-
 
 #undef X_STRIDE
 #undef F_STRIDE

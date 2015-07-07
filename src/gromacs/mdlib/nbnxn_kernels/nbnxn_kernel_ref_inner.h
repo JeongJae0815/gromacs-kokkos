@@ -360,6 +360,18 @@
             fy = fscal*dy;
             fz = fscal*dz;
 
+
+            /* if (ai == 1000 && cj == 331) */
+            /* { */
+            /*     printf("cjind0 = %d cjind1 = %d \n", cjind0, cjind1); */
+            /*     printf("ci = %d cj = %d j = %d \n", ci, cj, j); */
+            /*     printf("xi = %lf %lf %lf \n",xi[i*XI_STRIDE+XX],xi[i*XI_STRIDE+YY],xi[i*XI_STRIDE+ZZ]); */
+            /*     printf("xj = %lf %lf %lf \n",x[aj*X_STRIDE+XX],x[aj*X_STRIDE+YY],x[aj*X_STRIDE+ZZ]); */
+            /*     printf("i = %d dx = %lf fx = %lf \n", ai, dx, fx); */
+            /*     printf("i = %d dy = %lf fy = %lf \n", ai, dy, fy); */
+            /*     printf("i = %d dz = %lf fz = %lf \n", ai, dz, fz); */
+            /* } */
+
             /* Increment i-atom force */
             fi[i*FI_STRIDE+XX] += fx;
             fi[i*FI_STRIDE+YY] += fy;

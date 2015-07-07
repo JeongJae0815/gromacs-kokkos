@@ -2249,15 +2249,15 @@ static void init_nb_verlet(FILE                *fp,
         gpu_set_host_malloc_and_free(nbv->grp[0].kernel_type == nbnxnk8x8x8_GPU,
                                      &nb_alloc, &nb_free);
 
-        if (nbv->bUseKokkos)
-        {
-            nbnxn_init_pairlist_set_kokkos(&nbv->grp[i].nbl_lists,
-                                           nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-                                           /* 8x8x8 "non-simple" lists are ATM always combined */
-                                           !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-                                           nb_alloc, nb_free);
-        }
-        else
+        // if (nbv->bUseKokkos)
+        // {
+        //     nbnxn_init_pairlist_set_kokkos(&nbv->grp[i].nbl_lists,
+        //                                    nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+        //                                    /* 8x8x8 "non-simple" lists are ATM always combined */
+        //                                    !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+        //                                    nb_alloc, nb_free);
+        // }
+        // else
         {
             nbnxn_init_pairlist_set(&nbv->grp[i].nbl_lists,
                                     nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
@@ -2299,18 +2299,18 @@ static void init_nb_verlet(FILE                *fp,
             }
 
             snew(nbv->grp[i].nbat, 1);
-	    if (nbv->bUseKokkos)
-	      {
-		nbnxn_atomdata_init_kokkos(fp,
-				    nbv->grp[i].nbat,
-				    nbv->grp[i].kernel_type,
-				    enbnxninitcombrule,
-				    fr->ntype, fr->nbfp,
-				    ir->opts.ngener,
-				    bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
-				    nb_alloc, nb_free);
-	      }
-	    else
+	    // if (nbv->bUseKokkos)
+	    //   {
+		// nbnxn_atomdata_init_kokkos(fp,
+		// 		    nbv->grp[i].nbat,
+		// 		    nbv->grp[i].kernel_type,
+		// 		    enbnxninitcombrule,
+		// 		    fr->ntype, fr->nbfp,
+		// 		    ir->opts.ngener,
+		// 		    bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
+		// 		    nb_alloc, nb_free);
+	    //   }
+	    // else
 	      {
 		nbnxn_atomdata_init(fp,
 				    nbv->grp[i].nbat,
