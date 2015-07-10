@@ -2586,9 +2586,7 @@ void nbnxn_init_pairlist_set(nbnxn_pairlist_set_t *nbl_list,
     nbl_list->bSimple   = bSimple;
     nbl_list->bCombined = bCombined;
 
-    // \todo for kokkos find out the way to merge nnbl neighborlists into one
-    // for now hardcoding nnbl=1
-    nbl_list->nnbl = 1;//gmx_omp_nthreads_get(emntNonbonded);
+    nbl_list->nnbl = gmx_omp_nthreads_get(emntNonbonded);
 
     if (!nbl_list->bCombined &&
         nbl_list->nnbl > NBNXN_BUFFERFLAG_MAX_THREADS)

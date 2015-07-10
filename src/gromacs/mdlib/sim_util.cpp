@@ -489,7 +489,7 @@ static void do_nb_verlet(t_forcerec *fr,
     switch (nbvg->kernel_type)
     {
     case nbnxnk4x4_PlainC:
-        printf("\n PlainC kernel launch \n");
+        //        printf("\n PlainC kernel launch \n");
         nbnxn_kernel_ref(&nbvg->nbl_lists,
                          nbvg->nbat, ic,
                          fr->shift_vec,
@@ -534,7 +534,7 @@ static void do_nb_verlet(t_forcerec *fr,
         break;
 
     case nbnxn_Kokkos:
-        printf("\n Kokkos Kernel launch \n");
+        //        printf("\n Kokkos Kernel launch \n");
         nbnxn_kokkos_launch_kernel(&nbvg->nbl_lists,
                                    nbvg->nbat, ic,
                                    nbvg->ewald_excl,
