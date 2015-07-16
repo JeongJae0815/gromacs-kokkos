@@ -13,13 +13,13 @@
         (Kokkos::ThreadVectorRange(dev,NBNXN_KOKKOS_CLUSTER_J_SIZE), [&] (const int& k)
          {
              int aj = cj * NBNXN_KOKKOS_CLUSTER_J_SIZE + k;
-             xj_shmem[k*X_STRIDE + XX] = x_(aj*X_STRIDE + XX);
-             xj_shmem[k*X_STRIDE + YY] = x_(aj*X_STRIDE + YY);
-             xj_shmem[k*X_STRIDE + ZZ] = x_(aj*X_STRIDE + ZZ);
+             xj_shmem[k*XI_STRIDE + XX] = x_(aj*XI_STRIDE + XX);
+             xj_shmem[k*XI_STRIDE + YY] = x_(aj*XI_STRIDE + YY);
+             xj_shmem[k*XI_STRIDE + ZZ] = x_(aj*XI_STRIDE + ZZ);
              qj_shmem[k] = facel_ * q_(aj);
-             fj_sh.f[k*F_STRIDE + XX] = 0.0;
-             fj_sh.f[k*F_STRIDE + YY] = 0.0;
-             fj_sh.f[k*F_STRIDE + ZZ] = 0.0;
+             fj_sh.f[k*FI_STRIDE + XX] = 0.0;
+             fj_sh.f[k*FI_STRIDE + YY] = 0.0;
+             fj_sh.f[k*FI_STRIDE + ZZ] = 0.0;
          });
                     
     // compute forces on i atoms in parallel and reduce forces on j
@@ -53,9 +53,9 @@
                  skipmask = 1.0;
 #endif
 
-                 real dx = xi_shmem[k*X_STRIDE + XX] - xj_shmem[j*X_STRIDE + XX];
-                 real dy = xi_shmem[k*X_STRIDE + YY] - xj_shmem[j*X_STRIDE + YY];
-                 real dz = xi_shmem[k*X_STRIDE + ZZ] - xj_shmem[j*X_STRIDE + ZZ];
+                 real dx = xi_shmem[k*XI_STRIDE + XX] - xj_shmem[j*XI_STRIDE + XX];
+                 real dy = xi_shmem[k*XI_STRIDE + YY] - xj_shmem[j*XI_STRIDE + YY];
+                 real dz = xi_shmem[k*XI_STRIDE + ZZ] - xj_shmem[j*XI_STRIDE + ZZ];
                  real rsq = dx*dx + dy*dy + dz*dz;
 
                  /* Prepare to enforce the cut-off. */
@@ -113,13 +113,13 @@
                  real fz = fscal*dz;
 
                  /* Increment i-atom force */
-                 fi_shmem[k*F_STRIDE + XX] += fx;
-                 fi_shmem[k*F_STRIDE + YY] += fy;
-                 fi_shmem[k*F_STRIDE + ZZ] += fz;
+                 fi_shmem[k*FI_STRIDE + XX] += fx;
+                 fi_shmem[k*FI_STRIDE + YY] += fy;
+                 fi_shmem[k*FI_STRIDE + ZZ] += fz;
 
-                 fj.f[j*F_STRIDE + XX] -= fx;
-                 fj.f[j*F_STRIDE + YY] -= fy;
-                 fj.f[j*F_STRIDE + ZZ] -= fz;
+                 fj.f[j*FI_STRIDE + XX] -= fx;
+                 fj.f[j*FI_STRIDE + YY] -= fy;
+                 fj.f[j*FI_STRIDE + ZZ] -= fz;
 
              } // for loop over j
                             
@@ -131,9 +131,9 @@
         (Kokkos::ThreadVectorRange(dev,NBNXN_KOKKOS_CLUSTER_J_SIZE), [&] (const int& k)
          {
              int aj = cj * NBNXN_KOKKOS_CLUSTER_I_SIZE + k;
-             f_[I](aj*F_STRIDE + XX) += fj_sh.f[k*F_STRIDE + XX];
-             f_[I](aj*F_STRIDE + YY) += fj_sh.f[k*F_STRIDE + YY];
-             f_[I](aj*F_STRIDE + ZZ) += fj_sh.f[k*F_STRIDE + ZZ];
+             f_[I](aj*FI_STRIDE + XX) += fj_sh.f[k*FI_STRIDE + XX];
+             f_[I](aj*FI_STRIDE + YY) += fj_sh.f[k*FI_STRIDE + YY];
+             f_[I](aj*FI_STRIDE + ZZ) += fj_sh.f[k*FI_STRIDE + ZZ];
          });
 
 }
