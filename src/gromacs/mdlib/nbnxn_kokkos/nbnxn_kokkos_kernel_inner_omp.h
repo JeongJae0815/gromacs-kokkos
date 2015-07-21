@@ -4,15 +4,28 @@
 
 {
     int cj;
-    int i;
+    int i, j;
 
     cj = cj_[I](cjind).cj;
+    const unsigned int excl = cj_[I](cjind).excl;
+
+    for (j = 0; j < UNROLLJ; j++)
+    {
+        int aj = cj * UNROLLJ + j;
+        int jind = j*XJ_STRIDE;
+        xj[jind + XX] = x_(aj,XX);
+        xj[jind + YY] = x_(aj,YY);
+        xj[jind + ZZ] = x_(aj,ZZ);
+        fj[jind + XX] = 0.0;
+        fj[jind + YY] = 0.0;
+        fj[jind + ZZ] = 0.0;
+        qj[j] = q_(aj);
+    }
 
     for (i = 0; i < UNROLLI; i++)
     {
         int ai;
         int type_i_off;
-        int j;
 
         ai = ci*UNROLLI + i;
 
@@ -50,7 +63,7 @@
              * (e.g. because of bonding). */
             int interact;
 
-            interact = ((cj_[I](cjind).excl>>(i*UNROLLI + j)) & 1);
+            interact = ((excl>>(i*UNROLLI + j)) & 1);
 #ifndef EXCL_FORCES
             skipmask = interact;
 #else
@@ -62,10 +75,11 @@
 #endif
 
             aj = cj*UNROLLJ + j;
-
-            dx  = xi[i*XI_STRIDE+XX] - x_(aj*XI_STRIDE+XX);
-            dy  = xi[i*XI_STRIDE+YY] - x_(aj*XI_STRIDE+YY);
-            dz  = xi[i*XI_STRIDE+ZZ] - x_(aj*XI_STRIDE+ZZ);
+            int iind = i*XI_STRIDE;
+            int jind = j*XJ_STRIDE;
+            dx  = xi[iind+XX] - xj[jind+XX];
+            dy  = xi[iind+YY] - xj[jind+YY];
+            dz  = xi[iind+ZZ] - xj[jind+ZZ];
 
             rsq = dx*dx + dy*dy + dz*dz;
 
@@ -130,7 +144,7 @@
              * to the force and potential, and the easiest way
              * to do this is to zero the charges in
              * advance. */
-            qq = skipmask * qi[i] * q_(aj);
+            qq = skipmask * qi[i] * qj[j];
 
             rs     = rsq*rinv*tabq_scale_;
             ri     = (int)rs;
@@ -172,15 +186,28 @@
             fz = fscal*dz;
 
             /* Increment i-atom force */
-            fi[i*FI_STRIDE+XX] += fx;
-            fi[i*FI_STRIDE+YY] += fy;
-            fi[i*FI_STRIDE+ZZ] += fz;
+            iind = i*FI_STRIDE;
+            fi[iind+XX] += fx;
+            fi[iind+YY] += fy;
+            fi[iind+ZZ] += fz;
+
+            jind = j*FJ_STRIDE;
             /* Decrement j-atom force */
-            f_[I](aj*FI_STRIDE+XX)  -= fx;
-            f_[I](aj*FI_STRIDE+YY)  -= fy;
-            f_[I](aj*FI_STRIDE+ZZ)  -= fz;
+            fj[jind+XX] -= fx;
+            fj[jind+YY] -= fy;
+            fj[jind+ZZ] -= fz;
             /* 9 flops for force addition */
         }
+    }
+
+    /* Add accumulated i-forces to the force array */
+    for (j = 0; j < UNROLLJ; j++)
+    {
+        int aj = cj*UNROLLJ + j;
+        int jind = j*FJ_STRIDE;
+        f_[I](aj, XX) += fj[jind + XX];
+        f_[I](aj, YY) += fj[jind + YY];
+        f_[I](aj, ZZ) += fj[jind + ZZ];
     }
 }
 

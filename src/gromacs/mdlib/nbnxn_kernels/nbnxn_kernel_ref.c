@@ -50,6 +50,7 @@
 #include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_common.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/timing/walltime_accounting.h"
 
 /*! \brief Typedefs for declaring lookup tables of kernel functions.
  */
@@ -244,6 +245,7 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
     }
 
     nthreads = gmx_omp_nthreads_get(emntNonbonded);
+    double start = gmx_gettime();
 #pragma omp parallel for schedule(static) num_threads(nthreads)
     for (nb = 0; nb < nnbl; nb++)
     {
@@ -317,16 +319,11 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
                                          out->Vc);
         }
 
-    /* // print forces */
-    /* printf("Total forces\n"); */
-    /* int i = 1000; */
-    /* /\* for ( i = 0; i < nbat->nalloc; i++) *\/ */
-    /* { */
-    /*     printf("i = %d, fx = %lf\n", i, out->f[i*3+XX]); */
-    /*     printf("i = %d, fy = %lf\n", i, out->f[i*3+YY]); */
-    /*     printf("i = %d, fz = %lf\n", i, out->f[i*3+ZZ]); */
-    /* } */
     }
+
+    double end = gmx_gettime();
+    double elapsed_time = end - start;
+    printf("PlainC parallel loop elapsed time %lf \n",elapsed_time);
 
     if (force_flags & GMX_FORCE_ENERGY)
     {

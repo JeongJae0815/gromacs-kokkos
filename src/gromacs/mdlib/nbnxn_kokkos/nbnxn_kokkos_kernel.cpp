@@ -49,6 +49,7 @@
 
 #include <time.h>
 
+#include "gromacs/gmxlib/kokkos_tools/kokkos_type.h"
 #include "gromacs/legacyheaders/force.h"
 #include "gromacs/legacyheaders/gmx_omp_nthreads.h"
 #include "gromacs/legacyheaders/typedefs.h"
@@ -62,10 +63,14 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/pbcutil/ishift.h"
+#include "gromacs/timing/walltime_accounting.h"
 
 /* We could use nbat->xstride and nbat->fstride, but macros might be faster */
 #define XI_STRIDE   3
 #define FI_STRIDE   3
+
+#define XJ_STRIDE   3
+#define FJ_STRIDE   3
 
 /* For Kokkos, for now, using cluster sizes same as CPU i.e. 4 */
 #define NBNXN_KOKKOS_CLUSTER_I_SIZE NBNXN_CPU_CLUSTER_I_SIZE // 4
@@ -80,19 +85,19 @@ struct nbnxn_kokkos_kernel_functor
     typedef GMXDeviceType device_type;
 
     // list of structures needed for non-bonded interactions
-    HAT::t_un_real_1d x_;
-    HAT::t_un_real_1d q_;
-    HAT::t_un_int_1d type_;
-    HAT::t_un_real_1d nbfp_;
-    HAT::t_un_ci_1d* ci_;
-    HAT::t_un_cj_1d* cj_;
+    DAT::t_un_real_1d3 x_;
+    DAT::t_un_real_1d q_;
+    DAT::t_un_int_1d type_;
+    DAT::t_un_real_1d nbfp_;
+    DAT::t_un_ci_1d* ci_;
+    DAT::t_un_cj_1d* cj_;
     // make this atomic when vectorizing because more than one thread may write into same location
-    HAT::t_un_real_1d* f_;
-    HAT::t_un_real_1d* Vvdw_;
-    HAT::t_un_real_1d* Vc_;
-    HAT::t_un_real_1d Ftab_;
-    HAT::t_un_real_1d Vtab_;
-    HAT::t_un_real_1d shiftvec_;
+    DAT::t_un_real_1d3* f_;
+    DAT::t_un_real_1d* Vvdw_;
+    DAT::t_un_real_1d* Vc_;
+    DAT::t_un_real_1d Ftab_;
+    DAT::t_un_real_1d Vtab_;
+    DAT::t_un_real_1d shiftvec_;
 
     typedef Kokkos::
     View<int*, Kokkos::LayoutRight, GMXHostType> t_int_1d;
@@ -104,9 +109,9 @@ struct nbnxn_kokkos_kernel_functor
     const int ntype_;
     const int nnbl_;
 
-    nbnxn_kokkos_kernel_functor (const HAT::t_un_real_1d &Ftab,
-                                 const HAT::t_un_real_1d &Vtab,
-                                 const HAT::t_un_real_1d &shiftvec,
+    nbnxn_kokkos_kernel_functor (const DAT::t_un_real_1d &Ftab,
+                                 const DAT::t_un_real_1d &Vtab,
+                                 const DAT::t_un_real_1d &shiftvec,
                                  const real &rcut2,
                                  const real &facel,
                                  const real &tabq_scale,
@@ -124,10 +129,10 @@ struct nbnxn_kokkos_kernel_functor
     {
         int nb;
 
-        x_    = HAT::t_un_real_1d(nbat->x, nbat->nalloc * nbat->xstride);
-        q_    = HAT::t_un_real_1d(nbat->q, nbat->nalloc);
-        type_ = HAT::t_un_int_1d(nbat->type, nbat->ntype);
-        nbfp_ = HAT::t_un_real_1d(nbat->nbfp, nbat->ntype*nbat->ntype*2);
+        x_    = DAT::t_un_real_1d3(nbat->x, nbat->nalloc);// * nbat->xstride);
+        q_    = DAT::t_un_real_1d(nbat->q, nbat->nalloc);
+        type_ = DAT::t_un_int_1d(nbat->type, nbat->ntype);
+        nbfp_ = DAT::t_un_real_1d(nbat->nbfp, nbat->ntype*nbat->ntype*2);
 
         snew(ci_,nnbl_);
         snew(cj_,nnbl_);
@@ -139,27 +144,21 @@ struct nbnxn_kokkos_kernel_functor
 
         for (nb = 0; nb < nnbl_; nb++)
         {
-            ci_[nb]   = HAT::t_un_ci_1d(nbl[nb]->ci,nbl[nb]->ci_nalloc);
-            cj_[nb]   = HAT::t_un_cj_1d(nbl[nb]->cj,nbl[nb]->cj_nalloc);
+            ci_[nb]   = DAT::t_un_ci_1d(nbl[nb]->ci,nbl[nb]->ci_nalloc);
+            cj_[nb]   = DAT::t_un_cj_1d(nbl[nb]->cj,nbl[nb]->cj_nalloc);
             nci_(nb)  = nbl[nb]->nci;
-            f_[nb]    = HAT::t_un_real_1d(nbat->out[nb].f, nbat->nalloc * nbat->fstride);
-            Vvdw_[nb] = HAT::t_un_real_1d(nbat->out[nb].Vvdw, nbat->out[nb].nV);
-            Vc_[nb]   = HAT::t_un_real_1d(nbat->out[nb].Vc, nbat->out[nb].nV);
+            f_[nb]    = DAT::t_un_real_1d3(nbat->out[nb].f, nbat->nalloc);// * nbat->fstride);
+            Vvdw_[nb] = DAT::t_un_real_1d(nbat->out[nb].Vvdw, nbat->out[nb].nV);
+            Vc_[nb]   = DAT::t_un_real_1d(nbat->out[nb].Vc, nbat->out[nb].nV);
         }
-        
-    };
-
-    ~nbnxn_kokkos_kernel_functor ( )
-    {
 
     };
 
-    // no vectorization
+    ~nbnxn_kokkos_kernel_functor () {};
+
     KOKKOS_INLINE_FUNCTION
     void operator()(const int I) const
     {
-
-
         real                facel;
         real               *nbfp_i;
         int                 n, ci, ci_sh;
@@ -171,6 +170,10 @@ struct nbnxn_kokkos_kernel_functor
         real                xi[UNROLLI*XI_STRIDE];
         real                fi[UNROLLI*FI_STRIDE];
         real                qi[UNROLLI];
+
+        real                xj[UNROLLJ*XJ_STRIDE];
+        real                fj[UNROLLJ*FJ_STRIDE];
+        real                qj[UNROLLJ];
 
         real                Vvdw_ci, Vc_ci;
 
@@ -215,9 +218,9 @@ struct nbnxn_kokkos_kernel_functor
             for (i = 0; i < UNROLLI; i++)
             {
                 int ai = ci * NBNXN_KOKKOS_CLUSTER_I_SIZE + i;
-                xi[i*XI_STRIDE + XX] = x_(ai*XI_STRIDE + XX) + shiftvec_(ishf + XX);
-                xi[i*XI_STRIDE + YY] = x_(ai*XI_STRIDE + YY) + shiftvec_(ishf + YY);
-                xi[i*XI_STRIDE + ZZ] = x_(ai*XI_STRIDE + ZZ) + shiftvec_(ishf + ZZ);
+                xi[i*XI_STRIDE + XX] = x_(ai,XX) + shiftvec_(ishf + XX);
+                xi[i*XI_STRIDE + YY] = x_(ai,YY) + shiftvec_(ishf + YY);
+                xi[i*XI_STRIDE + ZZ] = x_(ai,ZZ) + shiftvec_(ishf + ZZ);
                 qi[i] = facel_ * q_(ai);
                 fi[i*FI_STRIDE + XX] = 0.0;
                 fi[i*FI_STRIDE + YY] = 0.0;
@@ -292,10 +295,11 @@ struct nbnxn_kokkos_kernel_functor
             /* Add accumulated i-forces to the force array */
             for (i = 0; i < UNROLLI; i++)
             {
-                for (d = 0; d < DIM; d++)
-                {
-                    f_[I]((ci*UNROLLI+i)*FI_STRIDE+d) += fi[i*FI_STRIDE+d];
-                }
+                int ai = ci*UNROLLI + i;
+                int iind = i*FI_STRIDE;
+                f_[I](ai, XX) += fi[iind + XX];
+                f_[I](ai, YY) += fi[iind + YY];
+                f_[I](ai, ZZ) += fi[iind + ZZ];
             }
 
             Vvdw_[I](0) += Vvdw_ci;
@@ -304,13 +308,6 @@ struct nbnxn_kokkos_kernel_functor
         }
 
     } // operator()
-
-    size_t team_shmem_size (int team_size) const {
-        return sizeof(real ) * (NBNXN_KOKKOS_CLUSTER_I_SIZE * XI_STRIDE + NBNXN_KOKKOS_CLUSTER_J_SIZE * XI_STRIDE + // xi + xj size
-                                NBNXN_KOKKOS_CLUSTER_I_SIZE * FI_STRIDE + NBNXN_KOKKOS_CLUSTER_J_SIZE * FI_STRIDE + // fi + fj size
-                                NBNXN_KOKKOS_CLUSTER_I_SIZE + NBNXN_KOKKOS_CLUSTER_J_SIZE // qi + qj size
-                                );
-    }
 
 };
 
@@ -338,9 +335,9 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 
     // initialize Kokkos functor
     typedef nbnxn_kokkos_kernel_functor f_type;
-    f_type nb_f(HAT::t_un_real_1d(ic->tabq_coul_F, ic->tabq_size),
-                HAT::t_un_real_1d(ic->tabq_coul_V, ic->tabq_size),
-                HAT::t_un_real_1d(shift_vec[0], SHIFTS),
+    f_type nb_f(DAT::t_un_real_1d(ic->tabq_coul_F, ic->tabq_size),
+                DAT::t_un_real_1d(ic->tabq_coul_V, ic->tabq_size),
+                DAT::t_un_real_1d(shift_vec[0], SHIFTS),
                 ic->rcoulomb*ic->rcoulomb,
                 ic->epsfac,
                 ic->tabq_scale,
@@ -351,6 +348,7 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
                 nbat,
                 nbl,
                 nnbl);
+
 
     // for now using omp pragma to clear forces
     // \todo implement this as kokkos parallel_for
@@ -383,7 +381,17 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
         }
     }
 
-    Kokkos::parallel_for(Kokkos::RangePolicy<typename f_type::device_type>(0,nnbl),nb_f);
+    typedef Kokkos::RangePolicy<typename f_type::device_type,
+        Kokkos::Impl::integral_constant<unsigned,1>> range_policy;
+
+    double start = gmx_gettime();
+        
+    Kokkos::parallel_for(range_policy(0,nnbl),nb_f);
+
+    double end = gmx_gettime();
+    double elapsed_time = end - start;
+
+    printf("Kokkos parallel_for elapsed time %lf \n ",elapsed_time);
 
     Kokkos::fence();
 
