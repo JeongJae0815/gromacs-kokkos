@@ -62,12 +62,16 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/pbcutil/ishift.h"
+#include "gromacs/timing/walltime_accounting.h"
 
 #include "nbnxn_kokkos_types.h"
 
 /* We could use nbat->xstride and nbat->fstride, but macros might be faster */
 #define XI_STRIDE   3
 #define FI_STRIDE   3
+
+#define XJ_STRIDE   3
+#define FJ_STRIDE   3
 
 /* For Kokkos, for now, using cluster sizes same as CPU i.e. 4 */
 #define NBNXN_KOKKOS_CLUSTER_I_SIZE NBNXN_CPU_CLUSTER_I_SIZE // 4
@@ -160,8 +164,6 @@ struct nbnxn_kokkos_kernel_functor
     KOKKOS_INLINE_FUNCTION
     void operator()(const int I) const
     {
-
-
         real                facel;
         real               *nbfp_i;
         int                 n, ci, ci_sh;
@@ -173,6 +175,10 @@ struct nbnxn_kokkos_kernel_functor
         real                xi[UNROLLI*XI_STRIDE];
         real                fi[UNROLLI*FI_STRIDE];
         real                qi[UNROLLI];
+
+        real                xj[UNROLLJ*XJ_STRIDE];
+        real                fj[UNROLLJ*FJ_STRIDE];
+        real                qj[UNROLLJ];
 
         real                Vvdw_ci, Vc_ci;
 
@@ -186,7 +192,7 @@ struct nbnxn_kokkos_kernel_functor
 
         Vvdw_[I](0) = 0.0;
         Vc_[I](0) = 0.0;
-
+        
         for (n = 0; n < nci_(I); n++)
         {
             int i, d;
@@ -216,14 +222,13 @@ struct nbnxn_kokkos_kernel_functor
 
             for (i = 0; i < UNROLLI; i++)
             {
-                int ai = ci * NBNXN_KOKKOS_CLUSTER_I_SIZE + i;
-                xi[i*XI_STRIDE + XX] = x_(ai*XI_STRIDE + XX) + shiftvec_(ishf + XX);
-                xi[i*XI_STRIDE + YY] = x_(ai*XI_STRIDE + YY) + shiftvec_(ishf + YY);
-                xi[i*XI_STRIDE + ZZ] = x_(ai*XI_STRIDE + ZZ) + shiftvec_(ishf + ZZ);
+                int ai = ci * UNROLLI + i;
+                for (d = 0; d < DIM; d++)
+                {
+                    xi[i*XI_STRIDE + d] = x_(ai*XI_STRIDE + d) + shiftvec_(ishf + d);
+                    fi[i*FI_STRIDE + d] = 0.0;
+                }
                 qi[i] = facel_ * q_(ai);
-                fi[i*FI_STRIDE + XX] = 0.0;
-                fi[i*FI_STRIDE + YY] = 0.0;
-                fi[i*FI_STRIDE + ZZ] = 0.0;
             }
 
             if (do_self)
@@ -242,7 +247,6 @@ struct nbnxn_kokkos_kernel_functor
             }
 
             cjind = cjind0;
-
             while (cjind < cjind1 && cj_[I](cjind).excl != 0xffff)
             {
 #define CHECK_EXCLS
@@ -302,7 +306,6 @@ struct nbnxn_kokkos_kernel_functor
 
             Vvdw_[I](0) += Vvdw_ci;
             Vc_[I](0) += Vc_ci;
-
         }
 
     } // operator()
@@ -439,6 +442,9 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
     nbnxn_atomdata_output_t *out;
     real                    *fshift_p;
 
+    double start, end;
+    double elapsed_time;
+
     nnbl = nbl_list->nnbl;
     nbl  = nbl_list->nbl;
 
@@ -447,95 +453,94 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
     // for now using omp pragma to clear forces
     // \todo implement this as kokkos parallel_for
     nthreads = gmx_omp_nthreads_get(emntNonbonded);
-#pragma omp parallel for schedule(static) num_threads(nthreads)
-    for (nb = 0; nb < nnbl; nb++)
-    {
-        nbnxn_atomdata_output_t *out;
-        real                    *fshift_p;
+// #pragma omp parallel for schedule(static) num_threads(nthreads)
+//     for (nb = 0; nb < nnbl; nb++)
+//     {
+//         nbnxn_atomdata_output_t *out;
+//         real                    *fshift_p;
 
-        out = &nbat->out[nb];
+//         out = &nbat->out[nb];
 
-        if (clearF == enbvClearFYes)
-        {
-            clear_f(nbat, nb, out->f);
-        }
+//         if (clearF == enbvClearFYes)
+//         {
+//             clear_f(nbat, nb, out->f);
+//         }
 
-        if ((force_flags & GMX_FORCE_VIRIAL) && nnbl == 1)
-        {
-            fshift_p = fshift;
-        }
-        else
-        {
-            fshift_p = out->fshift;
+//         if ((force_flags & GMX_FORCE_VIRIAL) && nnbl == 1)
+//         {
+//             fshift_p = fshift;
+//         }
+//         else
+//         {
+//             fshift_p = out->fshift;
 
-            if (clearF == enbvClearFYes)
-            {
-                clear_fshift(fshift_p);
-            }
-        }
-    }
+//             if (clearF == enbvClearFYes)
+//             {
+//                 clear_fshift(fshift_p);
+//             }
+//         }
+//     }
 
     // initialize unmanaged Kokkos host views from existing arrays on the host
 
-    if (nbat->kk_nbat == NULL)
-    {
-        snew(nbat->kk_nbat,1);    
-    }
-
-    nbat->kk_nbat->h_un_Ftab = HAT::t_un_real_1d(ic->tabq_coul_F, ic->tabq_size);
-    nbat->kk_nbat->h_un_shiftvec = HAT::t_un_real_1d(shift_vec[0], SHIFTS);
-
-    // initialize Kokkos functor
-
-    const int teamsize = 1;
-    const int nteams = nnbl;//int(nnbl/teamsize);
-    const int nvectors = 8;
-
-    // time_t start,end;
-    // time (&start);
-    typedef nbnxn_kokkos_kernel_functor f_type;
-    f_type nb_f(nbat->kk_nbat->h_un_Ftab,
-                HAT::t_un_real_1d(ic->tabq_coul_V, ic->tabq_size),
-                nbat->kk_nbat->h_un_shiftvec,
-                ic->rcoulomb*ic->rcoulomb,
-                ic->epsfac,
-                ic->tabq_scale,
-                ic->repulsion_shift.cpot,
-                ic->dispersion_shift.cpot,
-                ic->sh_ewald,
-                nbat->ntype,
-                nbat,
-                nbl,
-                nnbl);
-    // time (&end);
-    // double dif = difftime (end,start);
-    // printf ("Constructor elasped time is %.2lf seconds.", dif );
-
-    // Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
-    //Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize,nvectors);
-
-    // time (&start);
-    // launch kernel
-
-    // if (nnbl == 1)
-    //{
-    //    Kokkos::parallel_for(config,nb_f);
-    //}
-    // else
+    // if (nbat->kk_nbat == NULL)
     // {
-    //         Kokkos::parallel_for(Kokkos::RangePolicy<typename f_type::device_type,1>(nnbl),nb_f);
-    Kokkos::parallel_for(Kokkos::RangePolicy<typename f_type::device_type>(0,nnbl),nb_f);
+    //     snew(nbat->kk_nbat,1);    
     // }
 
-    // for now, wait until parallel_for finishes
-    Kokkos::fence();
+    // nbat->kk_nbat->h_un_Ftab = HAT::t_un_real_1d(ic->tabq_coul_F, ic->tabq_size);
+    // nbat->kk_nbat->h_un_shiftvec = HAT::t_un_real_1d(shift_vec[0], SHIFTS);
 
+    // // initialize Kokkos functor
+
+    // const int teamsize = 1;
+    // const int nteams = nnbl;//int(nnbl/teamsize);
+    // const int nvectors = 8;
+
+    // typedef nbnxn_kokkos_kernel_functor f_type;
+
+    // start = gmx_gettime();
+
+    // f_type nb_f(nbat->kk_nbat->h_un_Ftab,
+    //             HAT::t_un_real_1d(ic->tabq_coul_V, ic->tabq_size),
+    //             nbat->kk_nbat->h_un_shiftvec,
+    //             ic->rcoulomb*ic->rcoulomb,
+    //             ic->epsfac,
+    //             ic->tabq_scale,
+    //             ic->repulsion_shift.cpot,
+    //             ic->dispersion_shift.cpot,
+    //             ic->sh_ewald,
+    //             nbat->ntype,
+    //             nbat,
+    //             nbl,
+    //             nnbl);
+
+    // end = gmx_gettime();
+    // elapsed_time = end - start;
+    // printf ("Functor constructor elapsed time is %.12lf seconds.\n", elapsed_time );
+
+    //Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
+    //Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize,nvectors);
+
+
+    // launch kernel
+
+    // start = gmx_gettime();
+
+    //    Kokkos::parallel_for(Kokkos::RangePolicy<typename f_type::device_type>(0,nnbl),nb_f);
+
+    //Kokkos::parallel_for(nnbl,nb_f);
+
+    // for now, wait until parallel_for finishes
+
+    //    Kokkos::fence();
+
+    // end = gmx_gettime();
+    // elapsed_time = end - start;
+    // printf ("Parallel for elapsed time is %.12lf seconds.\n", elapsed_time );
 
     reduce_energies_over_lists(nbat, nnbl, Vvdw, Vc);
 
-    // time (&end);
-    // dif = difftime (end,start);
-    // printf ("Paralle_for elasped time is %.2lf seconds.", dif );
 
     // // print forces
     // printf("Total forces\n");

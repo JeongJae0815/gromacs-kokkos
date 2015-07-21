@@ -486,10 +486,12 @@ static void do_nb_verlet(t_forcerec *fr,
     {
         wallcycle_sub_start(wcycle, ewcsNONBONDED);
     }
+    double start,end,elapsed_time;
     switch (nbvg->kernel_type)
     {
     case nbnxnk4x4_PlainC:
         //        printf("\n PlainC kernel launch \n");
+        start = gmx_gettime();
         nbnxn_kernel_ref(&nbvg->nbl_lists,
                          nbvg->nbat, ic,
                          fr->shift_vec,
@@ -500,6 +502,9 @@ static void do_nb_verlet(t_forcerec *fr,
                          fr->bBHAM ?
                          enerd->grpp.ener[egBHAMSR] :
                          enerd->grpp.ener[egLJSR]);
+    end = gmx_gettime();
+    elapsed_time = end - start;
+    printf ("PlainC kernel elapsed time is %.12lf seconds.\n", elapsed_time );
         break;
 
     case nbnxnk4xN_SIMD_4xN:
@@ -535,6 +540,7 @@ static void do_nb_verlet(t_forcerec *fr,
 
     case nbnxn_Kokkos:
         //        printf("\n Kokkos Kernel launch \n");
+        start = gmx_gettime();
         nbnxn_kokkos_launch_kernel(&nbvg->nbl_lists,
                                    nbvg->nbat, ic,
                                    nbvg->ewald_excl,
@@ -546,6 +552,9 @@ static void do_nb_verlet(t_forcerec *fr,
                                    fr->bBHAM ?
                                    enerd->grpp.ener[egBHAMSR] :
                                    enerd->grpp.ener[egLJSR]);
+        end = gmx_gettime();
+        elapsed_time = end - start;
+        printf ("Kokkos kernel elapsed time is %.12lf seconds.\n", elapsed_time );
         break;
 
     case nbnxnk8x8x8_PlainC:

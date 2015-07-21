@@ -1674,7 +1674,7 @@ int mdrunner(gmx_hw_opt_t *hw_opt,
     free_gpu_resources(fr, cr, &hwinfo->gpu_info, fr ? fr->gpu_opt : NULL);
 
     /* Free Kokkos views */
-    free_kokkos_resources(fr, cr);
+    //    free_kokkos_resources(fr, cr);
 
     if (opt2bSet("-membed", nfile, fnm))
     {

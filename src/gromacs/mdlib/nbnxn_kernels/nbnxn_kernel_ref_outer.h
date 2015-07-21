@@ -257,6 +257,7 @@ NBK_FUNC_NAME(_VgrpF)
         do_LJ   = (nbln->shift & NBNXN_CI_DO_LJ(0));
         do_coul = (nbln->shift & NBNXN_CI_DO_COUL(0));
         half_LJ = ((nbln->shift & NBNXN_CI_HALF_LJ(0)) || !do_LJ) && do_coul;
+
 #ifdef LJ_EWALD
         do_self = TRUE;
 #else

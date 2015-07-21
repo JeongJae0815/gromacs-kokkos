@@ -8,6 +8,17 @@
 
     cj = cj_[I](cjind).cj;
 
+    for (int j = 0; j < UNROLLJ; j++)
+    {
+        int aj = cj * UNROLLJ + j;
+        for (d = 0; d < DIM; d++)
+        {
+            xj[j*XJ_STRIDE + d] = x_(aj*XJ_STRIDE + d);
+            fj[j*FJ_STRIDE + d] = 0.0;
+        }
+        qj[j] = q_(aj);
+    }
+
     for (i = 0; i < UNROLLI; i++)
     {
         int ai;
@@ -63,9 +74,9 @@
 
             aj = cj*UNROLLJ + j;
 
-            dx  = xi[i*XI_STRIDE+XX] - x_(aj*XI_STRIDE+XX);
-            dy  = xi[i*XI_STRIDE+YY] - x_(aj*XI_STRIDE+YY);
-            dz  = xi[i*XI_STRIDE+ZZ] - x_(aj*XI_STRIDE+ZZ);
+            dx  = xi[i*XI_STRIDE+XX] - xj[j*XJ_STRIDE+XX];//x_(aj*XI_STRIDE+XX);
+            dy  = xi[i*XI_STRIDE+YY] - xj[j*XJ_STRIDE+YY];//x_(aj*XI_STRIDE+YY);
+            dz  = xi[i*XI_STRIDE+ZZ] - xj[j*XJ_STRIDE+ZZ];//x_(aj*XI_STRIDE+ZZ);
 
             rsq = dx*dx + dy*dy + dz*dz;
 
@@ -130,7 +141,7 @@
              * to the force and potential, and the easiest way
              * to do this is to zero the charges in
              * advance. */
-            qq = skipmask * qi[i] * q_(aj);
+            qq = skipmask * qi[i] * qj[j];//q_(aj);
 
             rs     = rsq*rinv*tabq_scale_;
             ri     = (int)rs;
@@ -176,11 +187,22 @@
             fi[i*FI_STRIDE+YY] += fy;
             fi[i*FI_STRIDE+ZZ] += fz;
             /* Decrement j-atom force */
-            f_[I](aj*FI_STRIDE+XX)  -= fx;
-            f_[I](aj*FI_STRIDE+YY)  -= fy;
-            f_[I](aj*FI_STRIDE+ZZ)  -= fz;
+            fj[j*FI_STRIDE+XX] -= fx;
+            fj[j*FI_STRIDE+YY] -= fy;
+            fj[j*FI_STRIDE+ZZ] -= fz;
+            /* f_[I](aj*FI_STRIDE+XX)  -= fx; */
+            /* f_[I](aj*FI_STRIDE+YY)  -= fy; */
+            /* f_[I](aj*FI_STRIDE+ZZ)  -= fz; */
             /* 9 flops for force addition */
         }
+    }
+
+    for (int j = 0; j < UNROLLJ; j++)
+    {
+        int aj = cj*UNROLLJ + j;
+        f_[I](aj*FJ_STRIDE+XX)  += fj[j*FJ_STRIDE + XX];
+        f_[I](aj*FJ_STRIDE+YY)  += fj[j*FJ_STRIDE + YY];
+        f_[I](aj*FJ_STRIDE+ZZ)  += fj[j*FJ_STRIDE + ZZ];
     }
 }
 

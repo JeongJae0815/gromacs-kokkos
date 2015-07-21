@@ -50,6 +50,7 @@
 #include "gromacs/mdlib/nbnxn_kernels/nbnxn_kernel_common.h"
 #include "gromacs/pbcutil/ishift.h"
 #include "gromacs/utility/smalloc.h"
+#include "gromacs/timing/walltime_accounting.h"
 
 /*! \brief Typedefs for declaring lookup tables of kernel functions.
  */
@@ -244,89 +245,96 @@ nbnxn_kernel_ref(const nbnxn_pairlist_set_t *nbl_list,
     }
 
     nthreads = gmx_omp_nthreads_get(emntNonbonded);
-#pragma omp parallel for schedule(static) num_threads(nthreads)
-    for (nb = 0; nb < nnbl; nb++)
-    {
-        nbnxn_atomdata_output_t *out;
-        real                    *fshift_p;
 
-        out = &nbat->out[nb];
+    /* double start = gmx_gettime(); */
 
-        if (clearF == enbvClearFYes)
-        {
-            clear_f(nbat, nb, out->f);
-        }
+/* #pragma omp parallel for schedule(static) num_threads(nthreads) */
+/*     for (nb = 0; nb < nnbl; nb++) */
+/*     { */
+/*         nbnxn_atomdata_output_t *out; */
+/*         real                    *fshift_p; */
 
-        if ((force_flags & GMX_FORCE_VIRIAL) && nnbl == 1)
-        {
-            fshift_p = fshift;
-        }
-        else
-        {
-            fshift_p = out->fshift;
+/*         out = &nbat->out[nb]; */
 
-            if (clearF == enbvClearFYes)
-            {
-                clear_fshift(fshift_p);
-            }
-        }
+/*         if (clearF == enbvClearFYes) */
+/*         { */
+/*             clear_f(nbat, nb, out->f); */
+/*         } */
 
-        if (!(force_flags & GMX_FORCE_ENERGY))
-        {
-            /* Don't calculate energies */
-            p_nbk_c_noener[coult][vdwt](nbl[nb], nbat,
-                                        ic,
-                                        shift_vec,
-                                        out->f,
-                                        fshift_p);
-        }
-        else if (out->nV == 1)
-        {
-            /* No energy groups */
-            out->Vvdw[0] = 0;
-            out->Vc[0]   = 0;
+/*         if ((force_flags & GMX_FORCE_VIRIAL) && nnbl == 1) */
+/*         { */
+/*             fshift_p = fshift; */
+/*         } */
+/*         else */
+/*         { */
+/*             fshift_p = out->fshift; */
 
-            p_nbk_c_ener[coult][vdwt](nbl[nb], nbat,
-                                      ic,
-                                      shift_vec,
-                                      out->f,
-                                      fshift_p,
-                                      out->Vvdw,
-                                      out->Vc);
-        }
-        else
-        {
-            /* Calculate energy group contributions */
-            int i;
+/*             if (clearF == enbvClearFYes) */
+/*             { */
+/*                 clear_fshift(fshift_p); */
+/*             } */
+/*         } */
 
-            for (i = 0; i < out->nV; i++)
-            {
-                out->Vvdw[i] = 0;
-            }
-            for (i = 0; i < out->nV; i++)
-            {
-                out->Vc[i] = 0;
-            }
+/*         if (!(force_flags & GMX_FORCE_ENERGY)) */
+/*         { */
+/*             /\* Don't calculate energies *\/ */
+/*             p_nbk_c_noener[coult][vdwt](nbl[nb], nbat, */
+/*                                         ic, */
+/*                                         shift_vec, */
+/*                                         out->f, */
+/*                                         fshift_p); */
+/*         } */
+/*         else if (out->nV == 1) */
+/*         { */
+/*             /\* No energy groups *\/ */
+/*             out->Vvdw[0] = 0; */
+/*             out->Vc[0]   = 0; */
 
-            p_nbk_c_energrp[coult][vdwt](nbl[nb], nbat,
-                                         ic,
-                                         shift_vec,
-                                         out->f,
-                                         fshift_p,
-                                         out->Vvdw,
-                                         out->Vc);
-        }
+/*             p_nbk_c_ener[coult][vdwt](nbl[nb], nbat, */
+/*                                       ic, */
+/*                                       shift_vec, */
+/*                                       out->f, */
+/*                                       fshift_p, */
+/*                                       out->Vvdw, */
+/*                                       out->Vc); */
+/*         } */
+/*         else */
+/*         { */
+/*             /\* Calculate energy group contributions *\/ */
+/*             int i; */
 
-    /* // print forces */
-    /* printf("Total forces\n"); */
-    /* int i = 1000; */
-    /* /\* for ( i = 0; i < nbat->nalloc; i++) *\/ */
-    /* { */
-    /*     printf("i = %d, fx = %lf\n", i, out->f[i*3+XX]); */
-    /*     printf("i = %d, fy = %lf\n", i, out->f[i*3+YY]); */
-    /*     printf("i = %d, fz = %lf\n", i, out->f[i*3+ZZ]); */
-    /* } */
-    }
+/*             for (i = 0; i < out->nV; i++) */
+/*             { */
+/*                 out->Vvdw[i] = 0; */
+/*             } */
+/*             for (i = 0; i < out->nV; i++) */
+/*             { */
+/*                 out->Vc[i] = 0; */
+/*             } */
+
+/*             p_nbk_c_energrp[coult][vdwt](nbl[nb], nbat, */
+/*                                          ic, */
+/*                                          shift_vec, */
+/*                                          out->f, */
+/*                                          fshift_p, */
+/*                                          out->Vvdw, */
+/*                                          out->Vc); */
+/*         } */
+
+/*     /\* // print forces *\/ */
+/*     /\* printf("Total forces\n"); *\/ */
+/*     /\* int i = 1000; *\/ */
+/*     /\* /\\* for ( i = 0; i < nbat->nalloc; i++) *\\/ *\/ */
+/*     /\* { *\/ */
+/*     /\*     printf("i = %d, fx = %lf\n", i, out->f[i*3+XX]); *\/ */
+/*     /\*     printf("i = %d, fy = %lf\n", i, out->f[i*3+YY]); *\/ */
+/*     /\*     printf("i = %d, fz = %lf\n", i, out->f[i*3+ZZ]); *\/ */
+/*     /\* } *\/ */
+/*     } */
+
+    /* double end = gmx_gettime(); */
+    /* double elapsed_time = end - start; */
+    /* printf ("Parallel for elapsed time is %.12lf seconds.\n", elapsed_time ); */
 
     if (force_flags & GMX_FORCE_ENERGY)
     {

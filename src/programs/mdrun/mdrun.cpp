@@ -603,11 +603,12 @@ int gmx_mdrun(int argc, char *argv[])
     ddxyz[ZZ] = (int)(realddxyz[ZZ] + 0.5);
 
 #ifdef GMX_KOKKOS
-    int numa = 1;
     Kokkos::InitArguments kk_args;
     kk_args.num_threads = hw_opt.nthreads_omp;
     Kokkos::initialize(kk_args);
     printf("\n \n Initializing Kokkos with %d OpenMP threads\n \n", hw_opt.nthreads_omp);
+    printf("Kokkos configuration:\n");
+    Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
 #endif
 
     rc = mdrunner(&hw_opt, fplog, cr, NFILE, fnm, oenv, bVerbose, bCompact,
@@ -626,8 +627,8 @@ int gmx_mdrun(int argc, char *argv[])
     }
 
 #ifdef GMX_KOKKOS
-    Kokkos::finalize();
     printf("\n \n Finalizing Kokkos \n \n");
+    Kokkos::finalize();
 #endif
 
     return rc;
