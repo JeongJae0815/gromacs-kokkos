@@ -296,13 +296,13 @@ int gmx_mdrun(int argc, char *argv[])
 
     rvec            realddxyz          = {0, 0, 0};
     const char     *ddno_opt[ddnoNR+1] =
-    { NULL, "interleave", "pp_pme", "cartesian", NULL };
+        { NULL, "interleave", "pp_pme", "cartesian", NULL };
     const char     *dddlb_opt[] =
-    { NULL, "auto", "no", "yes", NULL };
+        { NULL, "auto", "no", "yes", NULL };
     const char     *thread_aff_opt[threadaffNR+1] =
-    { NULL, "auto", "on", "off", NULL };
+        { NULL, "auto", "on", "off", NULL };
     const char     *nbpu_opt[] =
-    { NULL, "auto", "cpu", "gpu", "gpu_cpu", NULL };
+        { NULL, "auto", "cpu", "gpu", "gpu_cpu", NULL };
     real            rdd                   = 0.0, rconstr = 0.0, dlb_scale = 0.8, pforce = -1;
     char           *ddcsx                 = NULL, *ddcsy = NULL, *ddcsz = NULL;
     real            cpt_period            = 15.0, max_hours = -1;
@@ -451,11 +451,11 @@ int gmx_mdrun(int argc, char *argv[])
      * with NULL instead of opt2fn
      */
     /*
-       if (!MASTER(cr))
-       {
-       PCA_Flags |= PCA_NOT_READ_NODE;
-       }
-     */
+      if (!MASTER(cr))
+      {
+      PCA_Flags |= PCA_NOT_READ_NODE;
+      }
+    */
 
     if (!parse_common_args(&argc, argv, PCA_Flags, NFILE, fnm, asize(pa), pa,
                            asize(desc), desc, 0, NULL, &oenv))
@@ -606,8 +606,8 @@ int gmx_mdrun(int argc, char *argv[])
     int numa = 1;
     Kokkos::InitArguments kk_args;
     kk_args.num_threads = hw_opt.nthreads_omp;
-    Kokkos::initialize(kk_args);
     printf("\n \n Initializing Kokkos with %d OpenMP threads\n \n", hw_opt.nthreads_omp);
+    Kokkos::initialize(kk_args);
 #endif
 
     rc = mdrunner(&hw_opt, fplog, cr, NFILE, fnm, oenv, bVerbose, bCompact,
@@ -626,8 +626,8 @@ int gmx_mdrun(int argc, char *argv[])
     }
 
 #ifdef GMX_KOKKOS
-    Kokkos::finalize();
     printf("\n \n Finalizing Kokkos \n \n");
+    Kokkos::finalize();
 #endif
 
     return rc;

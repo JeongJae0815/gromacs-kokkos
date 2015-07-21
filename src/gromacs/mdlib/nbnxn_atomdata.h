@@ -38,7 +38,6 @@
 
 #include "gromacs/legacyheaders/typedefs.h"
 #include "gromacs/mdlib/nbnxn_pairlist.h"
-#include "gromacs/gmxlib/kokkos_tools/kokkos_macros.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,25 +61,12 @@ void nbnxn_realloc_void(void **ptr,
 /* Reallocate the nbnxn_atomdata_t for a size of n atoms */
 void nbnxn_atomdata_realloc(nbnxn_atomdata_t *nbat, int n);
 
-/* Reallocate the nbnxn_atomdata_t with Kokkos Views for a size of n atoms */
-KOKKOS_FUNC_QUALIFIER
-void nbnxn_atomdata_realloc_kokkos(nbnxn_atomdata_t *nbat, int n) KOKKOS_FUNC_TERM
-
 /* Copy na rvec elements from x to xnb using nbatFormat, start dest a0,
  * and fills up to na_round using cx,cy,cz.
  */
 void copy_rvec_to_nbat_real(const int *a, int na, int na_round,
                             rvec *x, int nbatFormat, real *xnb, int a0,
                             int cx, int cy, int cz);
-
-/* Copy na rvec elements from x to Kokkos xnb View using nbatFormat,
- * start dest a0, and fills up to na_round using cx,cy,cz.
- * same as copy_rvec_to_nbat_real with Kokkos x View modify statement
- */
-KOKKOS_FUNC_QUALIFIER
-void copy_rvec_to_nbat_real_kokkos(const int *a, int na, int na_round,
-				   rvec *x, int nbatFormat, nbnxn_atomdata_t *nbat,
-				   int a0, int cx, int cy, int cz) KOKKOS_FUNC_TERM 
 
 enum {
     enbnxninitcombruleDETECT, enbnxninitcombruleGEOM, enbnxninitcombruleLB, enbnxninitcombruleNONE
@@ -102,37 +88,12 @@ void nbnxn_atomdata_init(FILE *fp,
                          nbnxn_alloc_t *alloc,
                          nbnxn_free_t  *free);
 
-/* Initialize the non-bonded atom data structure with Kokkos views.
- * The enum for nbatXFormat is in the file defining nbnxn_atomdata_t.
- * Copy the ntypes*ntypes*2 sized nbfp non-bonded parameter list
- * to the atom data structure.
- * enbnxninitcombrule sets what combination rule data gets stored in nbat.
- */
-KOKKOS_FUNC_QUALIFIER
-void nbnxn_atomdata_init_kokkos(FILE *fp,
-				nbnxn_atomdata_t *nbat,
-				int nb_kernel_type,
-				int enbnxninitcombrule,
-				int ntype, const real *nbfp,
-				int n_energygroups,
-				int nout,
-				nbnxn_alloc_t *alloc,
-				nbnxn_free_t  *free) KOKKOS_FUNC_TERM
-
 /* Copy the atom data to the non-bonded atom data structure */
 void nbnxn_atomdata_set(nbnxn_atomdata_t    *nbat,
                         int                  locality,
                         const nbnxn_search_t nbs,
                         const t_mdatoms     *mdatoms,
                         const int           *atinfo);
-
-/* Copy the atom data to the non-bonded atom data structure with Kokkos Views*/
-KOKKOS_FUNC_QUALIFIER
-void nbnxn_atomdata_set_kokkos(nbnxn_atomdata_t    *nbat,
-			       int                  locality,
-			       const nbnxn_search_t nbs,
-			       const t_mdatoms     *mdatoms,
-			       const int           *atinfo) KOKKOS_FUNC_TERM
 
 /* Copy the shift vectors to nbat */
 void nbnxn_atomdata_copy_shiftvec(gmx_bool          dynamic_box,
@@ -157,10 +118,6 @@ void nbnxn_atomdata_add_nbat_f_to_f(const nbnxn_search_t    nbs,
 /* Add the fshift force stored in nbat to fshift */
 void nbnxn_atomdata_add_nbat_fshift_to_fshift(const nbnxn_atomdata_t *nbat,
                                               rvec                   *fshift);
-
-/* Frees the Kokkos views  */
-KOKKOS_FUNC_QUALIFIER
-void nbnxn_atomdata_free_kokkos(nbnxn_atomdata_t *nbat) KOKKOS_FUNC_TERM
 
 #ifdef __cplusplus
 }

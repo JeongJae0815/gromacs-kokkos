@@ -792,14 +792,14 @@ static cginfo_mb_t *init_cginfo_mb(FILE *fplog, const gmx_mtop_t *mtop,
 
                     switch (a_con[ai])
                     {
-                        case acCONSTRAINT:
-                            SET_CGINFO_CONSTR(cginfo[cgm+cg]);
-                            break;
-                        case acSETTLE:
-                            SET_CGINFO_SETTLE(cginfo[cgm+cg]);
-                            break;
-                        default:
-                            break;
+                    case acCONSTRAINT:
+                        SET_CGINFO_CONSTR(cginfo[cgm+cg]);
+                        break;
+                    case acSETTLE:
+                        SET_CGINFO_SETTLE(cginfo[cgm+cg]);
+                        break;
+                    default:
+                        break;
                     }
                 }
                 if (bExclIntraAll)
@@ -1498,19 +1498,19 @@ gmx_bool can_use_allvsall(const t_inputrec *ir, gmx_bool bPrintNote, t_commrec *
 
     bAllvsAll =
         (
-            ir->rlist == 0            &&
-            ir->rcoulomb == 0         &&
-            ir->rvdw == 0             &&
-            ir->ePBC == epbcNONE      &&
-            ir->vdwtype == evdwCUT    &&
-            ir->coulombtype == eelCUT &&
-            ir->efep == efepNO        &&
-            (ir->implicit_solvent == eisNO ||
-             (ir->implicit_solvent == eisGBSA && (ir->gb_algorithm == egbSTILL ||
-                                                  ir->gb_algorithm == egbHCT   ||
-                                                  ir->gb_algorithm == egbOBC))) &&
-            getenv("GMX_NO_ALLVSALL") == NULL
-        );
+         ir->rlist == 0            &&
+         ir->rcoulomb == 0         &&
+         ir->rvdw == 0             &&
+         ir->ePBC == epbcNONE      &&
+         ir->vdwtype == evdwCUT    &&
+         ir->coulombtype == eelCUT &&
+         ir->efep == efepNO        &&
+         (ir->implicit_solvent == eisNO ||
+          (ir->implicit_solvent == eisGBSA && (ir->gb_algorithm == egbSTILL ||
+                                               ir->gb_algorithm == egbHCT   ||
+                                               ir->gb_algorithm == egbOBC))) &&
+         getenv("GMX_NO_ALLVSALL") == NULL
+         );
 
     if (bAllvsAll && ir->opts.ngener > 1)
     {
@@ -1629,9 +1629,9 @@ static void pick_nbnxn_kernel_cpu(const t_inputrec gmx_unused *ir,
          * On BlueGene/Q, this is faster regardless of precision.
          * In single precision, this is faster on Bulldozer.
          */
-#if GMX_SIMD_REAL_WIDTH >= 8 || \
-        (GMX_SIMD_REAL_WIDTH >= 4 && defined GMX_SIMD_HAVE_FMA && !defined GMX_DOUBLE) || \
-        defined GMX_SIMD_IBM_QPX
+#if GMX_SIMD_REAL_WIDTH >= 8 ||                                         \
+    (GMX_SIMD_REAL_WIDTH >= 4 && defined GMX_SIMD_HAVE_FMA && !defined GMX_DOUBLE) || \
+    defined GMX_SIMD_IBM_QPX
         *ewald_excl = ewaldexclAnalytical;
 #endif
         if (getenv("GMX_NBNXN_EWALD_TABLE") != NULL)
@@ -1653,41 +1653,41 @@ const char *lookup_nbnxn_kernel_name(int kernel_type)
     const char *returnvalue = NULL;
     switch (kernel_type)
     {
-        case nbnxnkNotSet:
-            returnvalue = "not set";
-            break;
-        case nbnxnk4x4_PlainC:
-            returnvalue = "plain C";
-            break;
-        case nbnxnk4xN_SIMD_4xN:
-        case nbnxnk4xN_SIMD_2xNN:
+    case nbnxnkNotSet:
+        returnvalue = "not set";
+        break;
+    case nbnxnk4x4_PlainC:
+        returnvalue = "plain C";
+        break;
+    case nbnxnk4xN_SIMD_4xN:
+    case nbnxnk4xN_SIMD_2xNN:
 #ifdef GMX_NBNXN_SIMD
 #if defined GMX_SIMD_X86_SSE2
-            returnvalue = "SSE2";
+        returnvalue = "SSE2";
 #elif defined GMX_SIMD_X86_SSE4_1
-            returnvalue = "SSE4.1";
+        returnvalue = "SSE4.1";
 #elif defined GMX_SIMD_X86_AVX_128_FMA
-            returnvalue = "AVX_128_FMA";
+        returnvalue = "AVX_128_FMA";
 #elif defined GMX_SIMD_X86_AVX_256
-            returnvalue = "AVX_256";
+        returnvalue = "AVX_256";
 #elif defined GMX_SIMD_X86_AVX2_256
-            returnvalue = "AVX2_256";
+        returnvalue = "AVX2_256";
 #else
-            returnvalue = "SIMD";
+        returnvalue = "SIMD";
 #endif
 #else  /* GMX_NBNXN_SIMD */
-            returnvalue = "not available";
+        returnvalue = "not available";
 #endif /* GMX_NBNXN_SIMD */
-            break;
-        case nbnxnk8x8x8_GPU: returnvalue    = "GPU"; break;
-        case nbnxn_Kokkos: returnvalue       = "Kokkos"; break;
-        case nbnxnk8x8x8_PlainC: returnvalue = "plain C"; break;
+        break;
+    case nbnxnk8x8x8_GPU: returnvalue    = "GPU"; break;
+    case nbnxn_Kokkos: returnvalue       = "Kokkos"; break;
+    case nbnxnk8x8x8_PlainC: returnvalue = "plain C"; break;
 
-        case nbnxnkNR:
-        default:
-            gmx_fatal(FARGS, "Illegal kernel type selected");
-            returnvalue = NULL;
-            break;
+    case nbnxnkNR:
+    default:
+        gmx_fatal(FARGS, "Illegal kernel type selected");
+        returnvalue = NULL;
+        break;
     }
     return returnvalue;
 };
@@ -1697,7 +1697,7 @@ static void pick_nbnxn_kernel(FILE                *fp,
                               gmx_bool             use_simd_kernels,
                               gmx_bool             bUseGPU,
                               gmx_bool             bEmulateGPU,
-			      gmx_bool             bUseKokkos,
+                              gmx_bool             bUseKokkos,
                               const t_inputrec    *ir,
                               int                 *kernel_type,
                               int                 *ewald_excl,
@@ -1724,7 +1724,6 @@ static void pick_nbnxn_kernel(FILE                *fp,
     else if (bUseKokkos)
     {
         *kernel_type = nbnxn_Kokkos;
-	md_print_info(cr, fp, "Using Kokkos nonbonded kernel");
     }
 
     if (*kernel_type == nbnxnkNotSet)
@@ -1767,7 +1766,7 @@ static void pick_nbnxn_resources(FILE                *fp,
                                  gmx_bool             bDoNonbonded,
                                  gmx_bool            *bUseGPU,
                                  gmx_bool            *bEmulateGPU,
-				 gmx_bool            *bUseKokkos,
+                                 gmx_bool            *bUseKokkos,
                                  const gmx_gpu_opt_t *gpu_opt)
 {
     gmx_bool bEmulateGPUEnvVarSet;
@@ -1837,16 +1836,16 @@ gmx_bool uses_simple_tables(int                 cutoff_scheme,
 
     switch (cutoff_scheme)
     {
-        case ecutsGROUP:
-            bUsesSimpleTables = TRUE;
-            break;
-        case ecutsVERLET:
-            assert(NULL != nbv && NULL != nbv->grp);
-            grp_index         = (group < 0) ? 0 : (nbv->ngrp - 1);
-            bUsesSimpleTables = nbnxn_kernel_pairlist_simple(nbv->grp[grp_index].kernel_type);
-            break;
-        default:
-            gmx_incons("unimplemented");
+    case ecutsGROUP:
+        bUsesSimpleTables = TRUE;
+        break;
+    case ecutsVERLET:
+        assert(NULL != nbv && NULL != nbv->grp);
+        grp_index         = (group < 0) ? 0 : (nbv->ngrp - 1);
+        bUsesSimpleTables = nbnxn_kernel_pairlist_simple(nbv->grp[grp_index].kernel_type);
+        break;
+    default:
+        gmx_incons("unimplemented");
     }
     return bUsesSimpleTables;
 }
@@ -1997,36 +1996,36 @@ init_interaction_const(FILE                       *fp,
 
     switch (ic->vdw_modifier)
     {
-        case eintmodPOTSHIFT:
-            /* Only shift the potential, don't touch the force */
-            ic->dispersion_shift.cpot = -pow(ic->rvdw, minusSix);
-            ic->repulsion_shift.cpot  = -pow(ic->rvdw, minusTwelve);
-            if (EVDW_PME(ic->vdwtype))
-            {
-                real crc2;
+    case eintmodPOTSHIFT:
+        /* Only shift the potential, don't touch the force */
+        ic->dispersion_shift.cpot = -pow(ic->rvdw, minusSix);
+        ic->repulsion_shift.cpot  = -pow(ic->rvdw, minusTwelve);
+        if (EVDW_PME(ic->vdwtype))
+        {
+            real crc2;
 
-                crc2            = sqr(ic->ewaldcoeff_lj*ic->rvdw);
-                ic->sh_lj_ewald = (exp(-crc2)*(1 + crc2 + 0.5*crc2*crc2) - 1)*pow(ic->rvdw, minusSix);
-            }
-            break;
-        case eintmodFORCESWITCH:
-            /* Switch the force, switch and shift the potential */
-            force_switch_constants(6.0, ic->rvdw_switch, ic->rvdw,
-                                   &ic->dispersion_shift);
-            force_switch_constants(12.0, ic->rvdw_switch, ic->rvdw,
-                                   &ic->repulsion_shift);
-            break;
-        case eintmodPOTSWITCH:
-            /* Switch the potential and force */
-            potential_switch_constants(ic->rvdw_switch, ic->rvdw,
-                                       &ic->vdw_switch);
-            break;
-        case eintmodNONE:
-        case eintmodEXACTCUTOFF:
-            /* Nothing to do here */
-            break;
-        default:
-            gmx_incons("unimplemented potential modifier");
+            crc2            = sqr(ic->ewaldcoeff_lj*ic->rvdw);
+            ic->sh_lj_ewald = (exp(-crc2)*(1 + crc2 + 0.5*crc2*crc2) - 1)*pow(ic->rvdw, minusSix);
+        }
+        break;
+    case eintmodFORCESWITCH:
+        /* Switch the force, switch and shift the potential */
+        force_switch_constants(6.0, ic->rvdw_switch, ic->rvdw,
+                               &ic->dispersion_shift);
+        force_switch_constants(12.0, ic->rvdw_switch, ic->rvdw,
+                               &ic->repulsion_shift);
+        break;
+    case eintmodPOTSWITCH:
+        /* Switch the potential and force */
+        potential_switch_constants(ic->rvdw_switch, ic->rvdw,
+                                   &ic->vdw_switch);
+        break;
+    case eintmodNONE:
+    case eintmodEXACTCUTOFF:
+        /* Nothing to do here */
+        break;
+    default:
+        gmx_incons("unimplemented potential modifier");
     }
 
     ic->sh_invrc6 = -ic->dispersion_shift.cpot;
@@ -2249,23 +2248,11 @@ static void init_nb_verlet(FILE                *fp,
         gpu_set_host_malloc_and_free(nbv->grp[0].kernel_type == nbnxnk8x8x8_GPU,
                                      &nb_alloc, &nb_free);
 
-        // if (nbv->bUseKokkos)
-        // {
-        //     nbnxn_init_pairlist_set_kokkos(&nbv->grp[i].nbl_lists,
-        //                                    nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-        //                                    /* 8x8x8 "non-simple" lists are ATM always combined */
-        //                                    !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-        //                                    nb_alloc, nb_free);
-        // }
-        // else
-        {
-            nbnxn_init_pairlist_set(&nbv->grp[i].nbl_lists,
-                                    nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-                                    /* 8x8x8 "non-simple" lists are ATM always combined */
-                                    !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-                                    nb_alloc, nb_free);
-        }
-
+        nbnxn_init_pairlist_set(&nbv->grp[i].nbl_lists,
+                                nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+                                /* 8x8x8 "non-simple" lists are ATM always combined */
+                                !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
+                                nb_alloc, nb_free);
 
         if (i == 0 ||
             nbv->grp[0].kernel_type != nbv->grp[i].kernel_type)
@@ -2299,28 +2286,16 @@ static void init_nb_verlet(FILE                *fp,
             }
 
             snew(nbv->grp[i].nbat, 1);
-	    // if (nbv->bUseKokkos)
-	    //   {
-		// nbnxn_atomdata_init_kokkos(fp,
-		// 		    nbv->grp[i].nbat,
-		// 		    nbv->grp[i].kernel_type,
-		// 		    enbnxninitcombrule,
-		// 		    fr->ntype, fr->nbfp,
-		// 		    ir->opts.ngener,
-		// 		    bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
-		// 		    nb_alloc, nb_free);
-	    //   }
-	    // else
-	      {
-		nbnxn_atomdata_init(fp,
-				    nbv->grp[i].nbat,
-				    nbv->grp[i].kernel_type,
-				    enbnxninitcombrule,
-				    fr->ntype, fr->nbfp,
-				    ir->opts.ngener,
-				    bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
-				    nb_alloc, nb_free);
-	      }
+
+            nbnxn_atomdata_init(fp,
+                                nbv->grp[i].nbat,
+                                nbv->grp[i].kernel_type,
+                                enbnxninitcombrule,
+                                fr->ntype, fr->nbfp,
+                                ir->opts.ngener,
+                                bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
+                                nb_alloc, nb_free);
+
         }
         else
         {
@@ -2624,68 +2599,68 @@ void init_forcerec(FILE              *fp,
     /* Electrostatics: Translate from interaction-setting-in-mdp-file to kernel interaction format */
     switch (fr->eeltype)
     {
-        case eelCUT:
-            fr->nbkernel_elec_interaction = (fr->bGB) ? GMX_NBKERNEL_ELEC_GENERALIZEDBORN : GMX_NBKERNEL_ELEC_COULOMB;
-            break;
+    case eelCUT:
+        fr->nbkernel_elec_interaction = (fr->bGB) ? GMX_NBKERNEL_ELEC_GENERALIZEDBORN : GMX_NBKERNEL_ELEC_COULOMB;
+        break;
 
-        case eelRF:
-        case eelGRF:
-        case eelRF_NEC:
-            fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_REACTIONFIELD;
-            break;
+    case eelRF:
+    case eelGRF:
+    case eelRF_NEC:
+        fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_REACTIONFIELD;
+        break;
 
-        case eelRF_ZERO:
-            fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_REACTIONFIELD;
-            fr->coulomb_modifier          = eintmodEXACTCUTOFF;
-            break;
+    case eelRF_ZERO:
+        fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_REACTIONFIELD;
+        fr->coulomb_modifier          = eintmodEXACTCUTOFF;
+        break;
 
-        case eelSWITCH:
-        case eelSHIFT:
-        case eelUSER:
-        case eelENCADSHIFT:
-        case eelPMESWITCH:
-        case eelPMEUSER:
-        case eelPMEUSERSWITCH:
-            fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_CUBICSPLINETABLE;
-            break;
+    case eelSWITCH:
+    case eelSHIFT:
+    case eelUSER:
+    case eelENCADSHIFT:
+    case eelPMESWITCH:
+    case eelPMEUSER:
+    case eelPMEUSERSWITCH:
+        fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_CUBICSPLINETABLE;
+        break;
 
-        case eelPME:
-        case eelEWALD:
-            fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_EWALD;
-            break;
+    case eelPME:
+    case eelEWALD:
+        fr->nbkernel_elec_interaction = GMX_NBKERNEL_ELEC_EWALD;
+        break;
 
-        default:
-            gmx_fatal(FARGS, "Unsupported electrostatic interaction: %s", eel_names[fr->eeltype]);
-            break;
+    default:
+        gmx_fatal(FARGS, "Unsupported electrostatic interaction: %s", eel_names[fr->eeltype]);
+        break;
     }
 
     /* Vdw: Translate from mdp settings to kernel format */
     switch (fr->vdwtype)
     {
-        case evdwCUT:
-            if (fr->bBHAM)
-            {
-                fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_BUCKINGHAM;
-            }
-            else
-            {
-                fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_LENNARDJONES;
-            }
-            break;
-        case evdwPME:
-            fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_LJEWALD;
-            break;
+    case evdwCUT:
+        if (fr->bBHAM)
+        {
+            fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_BUCKINGHAM;
+        }
+        else
+        {
+            fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_LENNARDJONES;
+        }
+        break;
+    case evdwPME:
+        fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_LJEWALD;
+        break;
 
-        case evdwSWITCH:
-        case evdwSHIFT:
-        case evdwUSER:
-        case evdwENCADSHIFT:
-            fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_CUBICSPLINETABLE;
-            break;
+    case evdwSWITCH:
+    case evdwSHIFT:
+    case evdwUSER:
+    case evdwENCADSHIFT:
+        fr->nbkernel_vdw_interaction = GMX_NBKERNEL_VDW_CUBICSPLINETABLE;
+        break;
 
-        default:
-            gmx_fatal(FARGS, "Unsupported vdw interaction: %s", evdw_names[fr->vdwtype]);
-            break;
+    default:
+        gmx_fatal(FARGS, "Unsupported vdw interaction: %s", evdw_names[fr->vdwtype]);
+        break;
     }
 
     /* These start out identical to ir, but might be altered if we e.g. tabulate the interaction in the kernel */
@@ -3252,11 +3227,11 @@ void init_forcerec(FILE              *fp,
     {
         gmx_nonbonded_setup(fr, bGenericKernelOnly);
         /*
-           if (ir->bAdress)
-            {
-                gmx_setup_adress_kernels(fp,bGenericKernelOnly);
-            }
-         */
+          if (ir->bAdress)
+          {
+          gmx_setup_adress_kernels(fp,bGenericKernelOnly);
+          }
+        */
     }
 
     /* Initialize the thread working data for bonded interactions */
@@ -3302,7 +3277,7 @@ void pr_forcerec(FILE *fp, t_forcerec *fr)
     pr_bool(fp, fr->bGrid);
     pr_bool(fp, fr->bTwinRange);
     /*pr_int(fp,fr->cg0);
-       pr_int(fp,fr->hcg);*/
+      pr_int(fp,fr->hcg);*/
     for (i = 0; i < fr->nnblists; i++)
     {
         pr_int(fp, fr->nblists[i].table_elec_vdw.n);
@@ -3395,46 +3370,5 @@ void free_gpu_resources(const t_forcerec     *fr,
             gmx_warning("On rank %d failed to free GPU #%d: %s",
                         cr->nodeid, get_current_cuda_gpu_device_id(), gpu_err_str);
         }
-    }
-}
-
-/* Frees Kokkos Views
- *
- * Note that this function needs to be called even if GPUs are not used
- * in this run because the PME ranks have no knowledge of whether GPUs
- * are used or not, but all ranks need to enter the barrier below.
- */
-void free_kokkos_resources(const t_forcerec     *fr,
-                           const t_commrec      *cr)
-{
-    gmx_bool bIsPPrankUsingKokkos;
-    //    char     gpu_err_str[STRLEN];
-
-    bIsPPrankUsingKokkos = (cr->duty & DUTY_PP) && fr && fr->nbv && fr->nbv->bUseKokkos;
-
-    if (bIsPPrankUsingKokkos)
-    {
-        /* free atomdata Kokkos Views */
-        nbnxn_atomdata_free_kokkos(fr->nbv->grp[0].nbat);
-
-        /* With tMPI we need to wait for all ranks to finish deallocation before
-         * destroying the context in free_gpu() as some ranks may be sharing
-         * GPU and context.
-         * Note: as only PP ranks need to free GPU resources, so it is safe to
-         * not call the barrier on PME ranks.
-         */
-// #ifdef GMX_THREAD_MPI
-//         if (PAR(cr))
-//         {
-//             gmx_barrier(cr);
-//         }
-// #endif  /* GMX_THREAD_MPI */
-
-        /* Finalize Kokkos ? */
-        // if (!free_cuda_gpu(cr->rank_pp_intranode, gpu_err_str, gpu_info, gpu_opt))
-        // {
-        //     gmx_warning("On rank %d failed to free GPU #%d: %s",
-        //                 cr->nodeid, get_current_cuda_gpu_device_id(), gpu_err_str);
-        // }
     }
 }

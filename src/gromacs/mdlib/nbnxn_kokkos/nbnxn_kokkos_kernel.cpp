@@ -63,8 +63,6 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/pbcutil/ishift.h"
 
-#include "nbnxn_kokkos_types.h"
-
 /* We could use nbat->xstride and nbat->fstride, but macros might be faster */
 #define XI_STRIDE   3
 #define FI_STRIDE   3
@@ -307,109 +305,6 @@ struct nbnxn_kokkos_kernel_functor
 
     } // operator()
 
-    // with vectorization
-    KOKKOS_INLINE_FUNCTION
-    void operator()(const  typename Kokkos::TeamPolicy<device_type>::member_type& dev) const
-    {
-        int n;
-        int cjind0, cjind1;
-        int ci, ci_sh;
-        int ish, ishf;
-        int cj;
-
-        const int I = dev.league_rank() * dev.team_size() + dev.team_rank();
-
-        size_t x_size  = NBNXN_KOKKOS_CLUSTER_I_SIZE*XI_STRIDE*sizeof(real);
-        real* xi_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
-        real* xj_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
-
-        size_t q_size  = NBNXN_KOKKOS_CLUSTER_I_SIZE*sizeof(real);
-        real* qi_shmem = (real * ) dev.team_shmem().get_shmem(q_size);
-        real* qj_shmem = (real * ) dev.team_shmem().get_shmem(q_size);
-
-        size_t f_size  = NBNXN_KOKKOS_CLUSTER_I_SIZE*FI_STRIDE*sizeof(real);
-        real* fi_shmem = (real * ) dev.team_shmem().get_shmem(f_size);
-
-        struct fj_reduce
-        {
-            real f[NBNXN_KOKKOS_CLUSTER_J_SIZE*FI_STRIDE];
-
-            KOKKOS_INLINE_FUNCTION
-            void operator+=(const volatile struct fj_reduce &rhs) volatile
-            {
-
-                for (int j = 0; j < NBNXN_KOKKOS_CLUSTER_J_SIZE*FI_STRIDE; j++)
-                {
-                    f[j] += rhs.f[j];
-                }
-            }
-
-        };
-
-        struct fj_reduce fj_sh;
-
-        for (n = 0; n < nci_(I); n++)
-        {
-            // \todo here NBNXN_CI_SHIFT=127, find out is this the right multiplier for kokkos kernel
-            ish              = (ci_[I](n).shift & NBNXN_CI_SHIFT);
-            /* x, f and fshift are assumed to be stored with stride 3 */
-            ishf             = ish*DIM;
-            cjind0           = ci_[I](n).cj_ind_start;
-            cjind1           = ci_[I](n).cj_ind_end;
-            /* Currently only works super-cells equal to sub-cells */
-            ci               = ci_[I](n).ci;
-            ci_sh            = (ish == CENTRAL ? ci : -1);
-
-            // load cluster i coordinates into shared memory
-            Kokkos::parallel_for
-                (Kokkos::ThreadVectorRange(dev,NBNXN_KOKKOS_CLUSTER_I_SIZE), [&] (const int& k)
-                 {
-                     int ai = ci * NBNXN_KOKKOS_CLUSTER_I_SIZE + k;
-                     xi_shmem[k*XI_STRIDE + XX] = x_(ai*XI_STRIDE + XX) + shiftvec_(ishf + XX);
-                     xi_shmem[k*XI_STRIDE + YY] = x_(ai*XI_STRIDE + YY) + shiftvec_(ishf + YY);
-                     xi_shmem[k*XI_STRIDE + ZZ] = x_(ai*XI_STRIDE + ZZ) + shiftvec_(ishf + ZZ);
-                     qi_shmem[k] = facel_ * q_(ai);
-                     fi_shmem[k*FI_STRIDE + XX] = 0.0;
-                     fi_shmem[k*FI_STRIDE + YY] = 0.0;
-                     fi_shmem[k*FI_STRIDE + ZZ] = 0.0;
-                 });
-
-            int cjind = cjind0;
-
-#define CHECK_EXCLS
-
-            while (cjind < cjind1 && cj_[I](cjind).excl != 0xffff)
-            {
-#include "gromacs/mdlib/nbnxn_kokkos/nbnxn_kokkos_kernel_inner.h"
-                cjind++;
-            } 
-
-#undef CHECK_EXCLS
-
-            for (; (cjind < cjind1); cjind++)
-            {
-#include "gromacs/mdlib/nbnxn_kokkos/nbnxn_kokkos_kernel_inner.h"
-            }
-
-                
-            // add i forces to global f
-            // atomic addition
-            Kokkos::parallel_for
-                (Kokkos::ThreadVectorRange(dev,NBNXN_KOKKOS_CLUSTER_I_SIZE), [&] (const int& k)
-                 {
-                     int ai = ci * NBNXN_KOKKOS_CLUSTER_I_SIZE + k;
-                     f_[I](ai*FI_STRIDE + XX) += fi_shmem[k*FI_STRIDE + XX];
-                     f_[I](ai*FI_STRIDE + YY) += fi_shmem[k*FI_STRIDE + YY];
-                     f_[I](ai*FI_STRIDE + ZZ) += fi_shmem[k*FI_STRIDE + ZZ];
-                 });
-
-
-
-
-        } // for loop over ci
-     
-    } // operator()
-        
     size_t team_shmem_size (int team_size) const {
         return sizeof(real ) * (NBNXN_KOKKOS_CLUSTER_I_SIZE * XI_STRIDE + NBNXN_KOKKOS_CLUSTER_J_SIZE * XI_STRIDE + // xi + xj size
                                 NBNXN_KOKKOS_CLUSTER_I_SIZE * FI_STRIDE + NBNXN_KOKKOS_CLUSTER_J_SIZE * FI_STRIDE + // fi + fj size
@@ -420,7 +315,7 @@ struct nbnxn_kokkos_kernel_functor
 };
 
 void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
-                                nbnxn_atomdata_t    *nbat,
+                                nbnxn_atomdata_t          *nbat,
                                 const interaction_const_t *ic,
                                 int                       ewald_excl,
                                 rvec                      *shift_vec,
@@ -430,7 +325,6 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
                                 real                      *Vc,
                                 real                      *Vvdw)
 {
-
     int                nnbl;
     nbnxn_pairlist_t **nbl;
     int                nb;
@@ -442,7 +336,21 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
     nnbl = nbl_list->nnbl;
     nbl  = nbl_list->nbl;
 
-    // printf("Number of neighborlist = %d", nnbl);
+    // initialize Kokkos functor
+    typedef nbnxn_kokkos_kernel_functor f_type;
+    f_type nb_f(HAT::t_un_real_1d(ic->tabq_coul_F, ic->tabq_size),
+                HAT::t_un_real_1d(ic->tabq_coul_V, ic->tabq_size),
+                HAT::t_un_real_1d(shift_vec[0], SHIFTS),
+                ic->rcoulomb*ic->rcoulomb,
+                ic->epsfac,
+                ic->tabq_scale,
+                ic->repulsion_shift.cpot,
+                ic->dispersion_shift.cpot,
+                ic->sh_ewald,
+                nbat->ntype,
+                nbat,
+                nbl,
+                nnbl);
 
     // for now using omp pragma to clear forces
     // \todo implement this as kokkos parallel_for
@@ -475,77 +383,11 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
         }
     }
 
-    // initialize unmanaged Kokkos host views from existing arrays on the host
-
-    if (nbat->kk_nbat == NULL)
-    {
-        snew(nbat->kk_nbat,1);    
-    }
-
-    nbat->kk_nbat->h_un_Ftab = HAT::t_un_real_1d(ic->tabq_coul_F, ic->tabq_size);
-    nbat->kk_nbat->h_un_shiftvec = HAT::t_un_real_1d(shift_vec[0], SHIFTS);
-
-    // initialize Kokkos functor
-
-    const int teamsize = 1;
-    const int nteams = nnbl;//int(nnbl/teamsize);
-    const int nvectors = 8;
-
-    // time_t start,end;
-    // time (&start);
-    typedef nbnxn_kokkos_kernel_functor f_type;
-    f_type nb_f(nbat->kk_nbat->h_un_Ftab,
-                HAT::t_un_real_1d(ic->tabq_coul_V, ic->tabq_size),
-                nbat->kk_nbat->h_un_shiftvec,
-                ic->rcoulomb*ic->rcoulomb,
-                ic->epsfac,
-                ic->tabq_scale,
-                ic->repulsion_shift.cpot,
-                ic->dispersion_shift.cpot,
-                ic->sh_ewald,
-                nbat->ntype,
-                nbat,
-                nbl,
-                nnbl);
-    // time (&end);
-    // double dif = difftime (end,start);
-    // printf ("Constructor elasped time is %.2lf seconds.", dif );
-
-    // Kokkos::DefaultExecutionSpace::print_configuration(std::cout,true);
-    //Kokkos::TeamPolicy<typename f_type::device_type> config(nteams,teamsize,nvectors);
-
-    // time (&start);
-    // launch kernel
-
-    // if (nnbl == 1)
-    //{
-    //    Kokkos::parallel_for(config,nb_f);
-    //}
-    // else
-    // {
-    //         Kokkos::parallel_for(Kokkos::RangePolicy<typename f_type::device_type,1>(nnbl),nb_f);
     Kokkos::parallel_for(Kokkos::RangePolicy<typename f_type::device_type>(0,nnbl),nb_f);
-    // }
 
-    // for now, wait until parallel_for finishes
     Kokkos::fence();
 
-
     reduce_energies_over_lists(nbat, nnbl, Vvdw, Vc);
-
-    // time (&end);
-    // dif = difftime (end,start);
-    // printf ("Paralle_for elasped time is %.2lf seconds.", dif );
-
-    // // print forces
-    // printf("Total forces\n");
-    // int i = 1000;
-    // // for ( i = 0; i < nbat->nalloc; i++)
-    // {
-    //     printf("i = %d, fx = %lf\n", i, out->f[i*FI_STRIDE+XX]);
-    //     printf("i = %d, fy = %lf\n", i, out->f[i*FI_STRIDE+YY]);
-    //     printf("i = %d, fz = %lf\n", i, out->f[i*FI_STRIDE+ZZ]);
-    // }
 
 }
 
@@ -555,110 +397,3 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 #undef FI_STRIDE
 #undef NBNXN_KOKKOS_CLUSTER_I_SIZE
 #undef NBNXN_KOKKOS_CLUSTER_J_SIZE
-
-
-//         int n;
-//         int cjind0, cjind1;
-//         int ci, ci_sh;
-//         int ish, ishf;
-//         int cj;
-
-//         const int I = dev.league_rank() * dev.team_size() + dev.team_rank();
-
-//         size_t x_size  = NBNXN_KOKKOS_CLUSTER_I_SIZE*XI_STRIDE*sizeof(real);
-//         real* xi_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
-//         real* xj_shmem = (real * ) dev.team_shmem().get_shmem(x_size);
-
-//         size_t q_size  = NBNXN_KOKKOS_CLUSTER_I_SIZE*sizeof(real);
-//         real* qi_shmem = (real * ) dev.team_shmem().get_shmem(q_size);
-//         real* qj_shmem = (real * ) dev.team_shmem().get_shmem(q_size);
-
-//         size_t f_size  = NBNXN_KOKKOS_CLUSTER_I_SIZE*FI_STRIDE*sizeof(real);
-//         real* fi_shmem = (real * ) dev.team_shmem().get_shmem(f_size);
-
-//         struct fj_reduce
-//         {
-//             real f[NBNXN_KOKKOS_CLUSTER_J_SIZE*FI_STRIDE];
-
-//             KOKKOS_INLINE_FUNCTION
-//             void operator+=(const volatile struct fj_reduce &rhs) volatile
-//             {
-
-//                 for (int j = 0; j < NBNXN_KOKKOS_CLUSTER_J_SIZE*FI_STRIDE; j++)
-//                 {
-//                     f[j] += rhs.f[j];
-//                 }
-//             }
-
-//         };
-
-//         struct fj_reduce fj_sh;
-
-//         for (n = 0; n < nci_(I); n++)
-//         {
-//             // \todo here NBNXN_CI_SHIFT=127, find out is this the right multiplier for kokkos kernel
-//             ish              = (ci_[I](n).shift & NBNXN_CI_SHIFT);
-//             /* x, f and fshift are assumed to be stored with stride 3 */
-//             ishf             = ish*DIM;
-//             cjind0           = ci_[I](n).cj_ind_start;
-//             cjind1           = ci_[I](n).cj_ind_end;
-//             /* Currently only works super-cells equal to sub-cells */
-//             ci               = ci_[I](n).ci;
-//             ci_sh            = (ish == CENTRAL ? ci : -1);
-
-//             // load cluster i coordinates into shared memory
-//             Kokkos::parallel_for
-//                 (Kokkos::ThreadVectorRange(dev,NBNXN_KOKKOS_CLUSTER_I_SIZE), [&] (const int& k)
-//                  {
-//                      int ai = ci * NBNXN_KOKKOS_CLUSTER_I_SIZE + k;
-//                      xi_shmem[k*XI_STRIDE + XX] = x_(ai*XI_STRIDE + XX) + shiftvec_(ishf + XX);
-//                      xi_shmem[k*XI_STRIDE + YY] = x_(ai*XI_STRIDE + YY) + shiftvec_(ishf + YY);
-//                      xi_shmem[k*XI_STRIDE + ZZ] = x_(ai*XI_STRIDE + ZZ) + shiftvec_(ishf + ZZ);
-//                      qi_shmem[k] = facel_ * q_(ai);
-//                      fi_shmem[k*FI_STRIDE + XX] = 0.0;
-//                      fi_shmem[k*FI_STRIDE + YY] = 0.0;
-//                      fi_shmem[k*FI_STRIDE + ZZ] = 0.0;
-//                  });
-
-//             int cjind = cjind0;
-
-// #define CHECK_EXCLS
-
-//             while (cjind < cjind1 && cj_[I](cjind).excl != 0xffff)
-//             {
-// #include "gromacs/mdlib/nbnxn_kokkos/nbnxn_kokkos_kernel_inner.h"
-//                 cjind++;
-//             } 
-
-// #undef CHECK_EXCLS
-
-//             for (; (cjind < cjind1); cjind++)
-//             {
-// #include "gromacs/mdlib/nbnxn_kokkos/nbnxn_kokkos_kernel_inner.h"
-//             }
-
-                
-//             // add i forces to global f
-//             // atomic addition
-//             Kokkos::parallel_for
-//                 (Kokkos::ThreadVectorRange(dev,NBNXN_KOKKOS_CLUSTER_I_SIZE), [&] (const int& k)
-//                  {
-//                      int ai = ci * NBNXN_KOKKOS_CLUSTER_I_SIZE + k;
-//                      f_[I](ai*FI_STRIDE + XX) += fi_shmem[k*FI_STRIDE + XX];
-//                      f_[I](ai*FI_STRIDE + YY) += fi_shmem[k*FI_STRIDE + YY];
-//                      f_[I](ai*FI_STRIDE + ZZ) += fi_shmem[k*FI_STRIDE + ZZ];
-//                  });
-
-//         } // for loop over ci
-
-
-
-// // following loop structure based on clusters explained in fig. 6
-// // of ref. S. Pall and B. Hess, Comp. Phys. Comm., 184, 2013
-// // for each cj cluster
-// //   load N coords+params for cj
-// //   for j = 0 to M
-// //     for i = 0 to N
-// //       calculate interaction of ci*M+i  with cj*N+j
-// //   store N cj-forces
-// // store M ci-forces

@@ -42,7 +42,6 @@
 
 #include "gromacs/legacyheaders/types/nblist.h"
 #include "gromacs/math/vectypes.h"
-#include "gromacs/mdlib/nbnxn_kokkos_types.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/bitmask.h"
 #include "gromacs/utility/real.h"
@@ -167,8 +166,6 @@ typedef struct nbnxn_pairlist_t {
 
     gmx_cache_protect_t     cp1;
 
-    nbnxn_kokkos_pairlist_t *kk_plist;    /* Structure with Kokkos views for pairlist arrays when Kokkos kernel is used */
-
 } nbnxn_pairlist_t;
 
 typedef struct {
@@ -272,8 +269,6 @@ typedef struct nbnxn_atomdata_t {
     nbnxn_buffer_flags_t     buffer_flags;           /* Flags for buffer zeroing+reduc.  */
     gmx_bool                 bUseTreeReduce;         /* Use tree for force reduction */
     tMPI_Atomic_t           *syncStep;               /* Synchronization step for tree reduce */
-
-    nbnxn_kokkos_atomdata_t *kk_nbat;                /* structure with Kokkos Views when Kokkos kernel is used */
 
 } nbnxn_atomdata_t;
 
