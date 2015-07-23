@@ -13,12 +13,15 @@
     {
         int aj = cj * UNROLLJ + j;
         int jind = j*XJ_STRIDE;
+
         xj[jind + XX] = x_(aj,XX);
         xj[jind + YY] = x_(aj,YY);
         xj[jind + ZZ] = x_(aj,ZZ);
+
         fj[jind + XX] = 0.0;
         fj[jind + YY] = 0.0;
         fj[jind + ZZ] = 0.0;
+
         qj[j] = q_(aj);
     }
 
@@ -77,6 +80,7 @@
             aj = cj*UNROLLJ + j;
             int iind = i*XI_STRIDE;
             int jind = j*XJ_STRIDE;
+
             dx  = xi[iind+XX] - xj[jind+XX];
             dy  = xi[iind+YY] - xj[jind+YY];
             dz  = xi[iind+ZZ] - xj[jind+ZZ];

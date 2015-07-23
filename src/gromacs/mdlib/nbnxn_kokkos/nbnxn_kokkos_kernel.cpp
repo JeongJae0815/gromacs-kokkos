@@ -384,14 +384,13 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
     typedef Kokkos::RangePolicy<typename f_type::device_type,
         Kokkos::Impl::integral_constant<unsigned,1>> range_policy;
 
-    double start = gmx_gettime();
+    //    double start = gmx_gettime();
         
     Kokkos::parallel_for(range_policy(0,nnbl),nb_f);
 
-    double end = gmx_gettime();
-    double elapsed_time = end - start;
-
-    printf("Kokkos parallel_for elapsed time %lf \n ",elapsed_time);
+    //    double end = gmx_gettime();
+    //    double elapsed_time = end - start;
+    //    printf("Kokkos parallel_for elapsed time %lf \n ",elapsed_time);
 
     Kokkos::fence();
 
