@@ -124,6 +124,7 @@ struct nbnxn_kokkos_kernel_functor
                             3,3,3,3};
     const int j_vec_[16] = {0,1,2,3,
                             0,1,2,3,
+                            0,1,2,3,
                             0,1,2,3};
 
     const real inv_12_ = 1.0/12.0;
@@ -135,21 +136,24 @@ struct nbnxn_kokkos_kernel_functor
         real fj[UNROLLJ*FJ_STRIDE];
         real Vvdw_ci, Vc_ci;
 
-        f_reduce() {
+        f_reduce()
+        {
             Vvdw_ci = 0.0;
-            Vc_ci   = 0.0;
+            Vc_ci = 0.0;
             for (int i = 0; i < UNROLLI*FI_STRIDE; i++)
             {
                 fi[i] =  0.0;
             }
+
             for (int j = 0; j < UNROLLJ*FJ_STRIDE; j++)
             {
-                fj[j] = 0.0;
+                fj[j] =  0.0;
             }
+
         }
 
         KOKKOS_INLINE_FUNCTION
-        void operator+=(const volatile struct f_reduce &rhs) volatile
+        void operator+=(const struct f_reduce &rhs)
         {
             Vvdw_ci += rhs.Vvdw_ci;
             Vc_ci   += rhs.Vc_ci;
@@ -236,7 +240,6 @@ struct nbnxn_kokkos_kernel_functor
         shared_qi qi(dev.team_shmem());
 
         shared_xj xj(dev.team_shmem());
-        shared_fj fj(dev.team_shmem());
         shared_qj qj(dev.team_shmem());
 
         Kokkos::single(Kokkos::PerTeam(dev),[=] () {
@@ -275,7 +278,7 @@ struct nbnxn_kokkos_kernel_functor
 
             // load cluster i coordinates into shared memory
             Kokkos::parallel_for
-                (Kokkos::ThreadVectorRange(dev,UNROLLI), [&] (const int& k)
+                (Kokkos::ThreadVectorRange(dev,UNROLLI), KOKKOS_LAMBDA (const int& k)
                  {
                      int aik = ci * UNROLLI + k;
 
@@ -299,19 +302,19 @@ struct nbnxn_kokkos_kernel_functor
                 {
                     real Vc_sum = 0.0;
                     Kokkos::parallel_reduce
-                        (Kokkos::ThreadVectorRange(dev,UNROLLI), [=] (int& k, real& Vc)
+                        (Kokkos::ThreadVectorRange(dev,UNROLLI), KOKKOS_LAMBDA (int& k, real& Vc)
                          {
                              Vc += facel_ * qi(k) * qi(k) * Vc_sub_self;
                          }, Vc_sum);
 
-                    Kokkos::single(Kokkos::PerTeam(dev),[=] () {
+                    Kokkos::single(Kokkos::PerTeam(dev),KOKKOS_LAMBDA () {
                             Vc_[I](0) -= Vc_sum;
                         });                    
                 }
             }
 
             Kokkos::parallel_for
-                (Kokkos::ThreadVectorRange(dev,UNROLLI), [&] (const int& k)
+                (Kokkos::ThreadVectorRange(dev,UNROLLI), KOKKOS_LAMBDA (int& k)
                  {
                      qi(k) *= facel_;
                  });
@@ -367,7 +370,7 @@ struct nbnxn_kokkos_kernel_functor
             ninner += cjind1 - cjind0;
 
             Kokkos::parallel_for
-                (Kokkos::ThreadVectorRange(dev,UNROLLI), [&] (const int& k)
+                (Kokkos::ThreadVectorRange(dev,UNROLLI), KOKKOS_LAMBDA (int& k)
                  {
                      int aik = ci * UNROLLI + k;
 
@@ -376,19 +379,18 @@ struct nbnxn_kokkos_kernel_functor
                      f_[I](aik, ZZ) += fi(k,ZZ);
                  });
 
-            Kokkos::single(Kokkos::PerTeam(dev),[=] () {
+            Kokkos::single(Kokkos::PerTeam(dev),KOKKOS_LAMBDA () {
 
                     Vvdw_[I](0) += Vvdw_ci;
                     Vc_[I](0) += Vc_ci;
 
                 });
-            
         }
     } // operator()
 
     size_t team_shmem_size (int team_size) const {
         return sizeof(real ) * (UNROLLI * XI_STRIDE + UNROLLJ * XJ_STRIDE + // xi + xj size
-                                UNROLLI * FI_STRIDE + UNROLLJ * FJ_STRIDE + // fi + fj size
+                                UNROLLI * FI_STRIDE + // fi
                                 UNROLLI + UNROLLJ // qi + qj size
                                 );
     }
@@ -476,17 +478,17 @@ void nbnxn_kokkos_launch_kernel(nbnxn_pairlist_set_t      *nbl_list,
 
     const int teamsize = 1;
     const int nteams = nnbl;
-    const int nvectors = 16;
+    const int nvectors = 8;
 
     typedef Kokkos::TeamPolicy<typename f_type::device_type> team_policy;
 
     team_policy config(nteams,teamsize,nvectors);
 
-    double start = gmx_gettime();
+    // double start = gmx_gettime();
     Kokkos::parallel_for(config,nb_f);
-    double end = gmx_gettime();
-    double elapsed_time = end - start;
-    printf("Kokkos parallel_for elapsed time %lf \n ",elapsed_time);
+    // double end = gmx_gettime();
+    // double elapsed_time = end - start;
+    // printf("Kokkos parallel_for elapsed time %lf \n ",elapsed_time);
 
     Kokkos::fence();
 
