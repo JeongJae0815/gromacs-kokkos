@@ -79,6 +79,8 @@
 #define UNROLLI NBNXN_KOKKOS_CLUSTER_I_SIZE
 #define UNROLLJ NBNXN_KOKKOS_CLUSTER_J_SIZE
 
+#define UNROLLI_HALF 2
+
 struct nbnxn_kokkos_kernel_functor
 {
     // for now focusing on Xeon Phi device which is run in a native mode, i.e., host==device
@@ -118,55 +120,19 @@ struct nbnxn_kokkos_kernel_functor
     const int ntype_;
     const int nnbl_;
 
-    const int i_vec_[16] = {0,0,0,0,
-                            1,1,1,1,
-                            2,2,2,2,
-                            3,3,3,3};
-    const int j_vec_[16] = {0,1,2,3,
-                            0,1,2,3,
-                            0,1,2,3,
-                            0,1,2,3};
-
     const real inv_12_ = 1.0/12.0;
     const real inv_6_ = 1.0/6.0;
 
-    struct f_reduce
+    struct v_energy
     {
-        real fi[UNROLLI*FI_STRIDE];
-        real fj[UNROLLJ*FJ_STRIDE];
-        real Vvdw_ci, Vc_ci;
-
-        f_reduce()
-        {
-            Vvdw_ci = 0.0;
-            Vc_ci = 0.0;
-            for (int i = 0; i < UNROLLI*FI_STRIDE; i++)
-            {
-                fi[i] =  0.0;
-            }
-
-            for (int j = 0; j < UNROLLJ*FJ_STRIDE; j++)
-            {
-                fj[j] =  0.0;
-            }
-
-        }
+        real vdw = 0.0;
+        real vc  = 0.0;
 
         KOKKOS_INLINE_FUNCTION
-        void operator+=(const struct f_reduce &rhs)
+        void operator+=(const struct v_energy &rhs)
         {
-            Vvdw_ci += rhs.Vvdw_ci;
-            Vc_ci   += rhs.Vc_ci;
-
-            for (int i = 0; i < UNROLLI*FI_STRIDE; i++)
-            {
-                fi[i] += rhs.fi[i];
-            }
-
-            for (int j = 0; j < UNROLLJ*FJ_STRIDE; j++)
-            {
-                fj[j] += rhs.fj[j];
-            }
+            vdw += rhs.vdw;
+            vc   += rhs.vc;
         }
     };
 
@@ -240,7 +206,10 @@ struct nbnxn_kokkos_kernel_functor
         shared_qi qi(dev.team_shmem());
 
         shared_xj xj(dev.team_shmem());
+        shared_fj fj(dev.team_shmem());
         shared_qj qj(dev.team_shmem());
+
+        DAT::t_un_real_1d3 f_view = f_[I];
 
         Kokkos::single(Kokkos::PerTeam(dev),[=] () {
 
@@ -374,9 +343,9 @@ struct nbnxn_kokkos_kernel_functor
                  {
                      int aik = ci * UNROLLI + k;
 
-                     f_[I](aik, XX) += fi(k,XX);
-                     f_[I](aik, YY) += fi(k,YY);
-                     f_[I](aik, ZZ) += fi(k,ZZ);
+                     f_view(aik, XX) += fi(k,XX);
+                     f_view(aik, YY) += fi(k,YY);
+                     f_view(aik, ZZ) += fi(k,ZZ);
                  });
 
             Kokkos::single(Kokkos::PerTeam(dev),KOKKOS_LAMBDA () {
@@ -390,7 +359,7 @@ struct nbnxn_kokkos_kernel_functor
 
     size_t team_shmem_size (int team_size) const {
         return sizeof(real ) * (UNROLLI * XI_STRIDE + UNROLLJ * XJ_STRIDE + // xi + xj size
-                                UNROLLI * FI_STRIDE + // fi
+                                UNROLLI * FI_STRIDE + UNROLLJ * FJ_STRIDE + // fi + fj size
                                 UNROLLI + UNROLLJ // qi + qj size
                                 );
     }
