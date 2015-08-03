@@ -6,10 +6,11 @@
     const int cj = cj_[I](cjind).cj;
     const unsigned int excl = cj_[I](cjind).excl;
 
+    int cjj         = cj*UNROLLJ;
     Kokkos::parallel_for
         (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k)
          {
-             int ajk = cj * UNROLLJ + k;
+             int ajk = cjj + k;
 
              xj(k,XX) = x_(ajk,XX);
              xj(k,YY) = x_(ajk,YY);
@@ -23,405 +24,272 @@
 
          });
 
-    struct v_energy V_sum1;
-
-    Kokkos::parallel_reduce
-        (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k, struct v_energy& V)
+    // DOES NOT VECTORIZE
+    Kokkos::parallel_for
+        (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k)
          {
-             int ai0         = ci*UNROLLI + 0;
-             int ai1         = ai0 + 1;
-             int type_i_off0 = type_(ai0)*ntype2;
-             int type_i_off1 = type_(ai1)*ntype2;
+             int ajk = cjj + k;
+             typej(k) = type_(ajk)*2;
+         });
 
-             int aj         = cj*UNROLLJ + k;
-             int type_j_off = type_(aj)*2;
+    for (int i = 0; i < 2; i++)
+    {
+        int type_i_off  = typei(i);
+        real q          = qi(i);
 
-             real c60       = nbfp_(type_i_off0 + type_j_off);
-             real c120      = nbfp_(type_i_off0 + type_j_off + 1);
-             real c61       = nbfp_(type_i_off1 + type_j_off);
-             real c121      = nbfp_(type_i_off1 + type_j_off + 1);
+        struct v_energy V_sum;
+        Kokkos::parallel_reduce
+            (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k,struct v_energy& V)
+             {
+                 int type_j_off = typej(k);
 
-             real dx0, dy0, dz0;
-             real rsq0, rinv0;
-             real rinvsq0, rinvsix0;
-             real FrLJ60 = 0, FrLJ120 = 0, frLJ0 = 0, VLJ0 = 0;
+                 // reading lj parameter causes indirect access
+                 real c6       = nbfp_(type_i_off + type_j_off);
+                 real c12      = nbfp_(type_i_off + type_j_off + 1);
 
-             real dx1, dy1, dz1;
-             real rsq1, rinv1;
-             real rinvsq1, rinvsix1;
-             real FrLJ61 = 0, FrLJ121 = 0, frLJ1 = 0, VLJ1 = 0;
+                 real dx, dy, dz;
+                 real rsq, rinv;
+                 real rinvsq, rinvsix;
+                 real FrLJ6 = 0, FrLJ12 = 0, frLJ = 0, VLJ = 0;
 
 #ifdef CALC_COULOMB
-             real qq0;
-             real fcoul0;
-             real rs0, frac0;
-             int  ri0;
-             real fexcl0;
-             real vcoul0;
-
-             real qq1;
-             real fcoul1;
-             real rs1, frac1;
-             int  ri1;
-             real fexcl1;
-             real vcoul1;
+                 real qq;
+                 real fcoul;
+                 real rs, frac;
+                 int  ri;
+                 real fexcl;
+                 real vcoul;
 #endif
-             real fscal0;
-             real fx0, fy0, fz0;
+                 real fscal;
+                 real fx, fy, fz;
 
-             real fscal1;
-             real fx1, fy1, fz1;
-
-             /* A multiply mask used to zero an interaction
-              * when either the distance cutoff is exceeded, or
-              * (if appropriate) the i and j indices are
-              * unsuitable for this kind of inner loop. */
-             real skipmask0;
-             real skipmask1;
+                 real skipmask;
 
 #ifdef CHECK_EXCLS
-             /* A multiply mask used to zero an interaction
-              * when that interaction should be excluded
-              * (e.g. because of bonding). */
-             int interact0;
-             int interact1;
+                 /* A multiply mask used to zero an interaction
+                  * when that interaction should be excluded
+                  * (e.g. because of bonding). */
+                 int interact;
 
-             interact0 = ((excl>>(k)) & 1);
-             interact1 = ((excl>>(UNROLLI + k)) & 1);
+                 interact = ((excl>>(i*UNROLLI + k)) & 1);
 
 #ifndef EXCL_FORCES
-             skipmask0 = interact0;
-             skipmask1 = interact1;
+                 skipmask = interact;
 #else
-             skipmask0 = !(cj == ci_sh && k <= 0);
-             skipmask1 = !(cj == ci_sh && k <= 1);
+                 skipmask = !(cj == ci_sh && k <= i);
 #endif
 #else
-#define interact0 1.0
-#define interact1 1.0
-             skipmask0 = 1.0;
-             skipmask1 = 1.0;
+#define interact 1.0
+                 skipmask = 1.0;
 #endif
-             dx0  = xi(0,XX) - xj(k,XX);
-             dy0  = xi(0,YY) - xj(k,YY);
-             dz0  = xi(0,ZZ) - xj(k,ZZ);
+                 dx  = xi(i,XX) - xj(k,XX);
+                 dy  = xi(i,YY) - xj(k,YY);
+                 dz  = xi(i,ZZ) - xj(k,ZZ);
 
-             dx1  = xi(1,XX) - xj(k,XX);
-             dy1  = xi(1,YY) - xj(k,YY);
-             dz1  = xi(1,ZZ) - xj(k,ZZ);
+                 rsq = dx*dx + dy*dy + dz*dz;
 
-             rsq0 = dx0*dx0 + dy0*dy0 + dz0*dz0;
-             rsq1 = dx1*dx1 + dy1*dy1 + dz1*dz1;
-
-             /* Prepare to enforce the cut-off. */
-             skipmask0 = (rsq0 >= rcut2) ? 0 : skipmask0;
-             skipmask1 = (rsq1 >= rcut2) ? 0 : skipmask1;
+                 // prevents vectorization (complains loop with early exit)
+                 /* /\* Prepare to enforce the cut-off. *\/ */
+                 skipmask = (rsq >= rcut2) ? 0 : skipmask;
 
 #ifdef CHECK_EXCLS
-             /* Excluded atoms are allowed to be on top of each other.
-              * To avoid overflow of rinv, rinvsq and rinvsix
-              * we add a small number to rsq for excluded pairs only.
-              */
-             rsq0 += (1 - interact0)*NBNXN_AVOID_SING_R2_INC;
-             rsq1 += (1 - interact1)*NBNXN_AVOID_SING_R2_INC;
+                 /* Excluded atoms are allowed to be on top of each other.
+                  * To avoid overflow of rinv, rinvsq and rinvsix
+                  * we add a small number to rsq for excluded pairs only.
+                  */
+                 rsq += (1 - interact)*NBNXN_AVOID_SING_R2_INC;
 #endif
-             
-             /* sqrt() function can be used in autovectorized loop */
-             /* gmx_invsqrt() found to be slower than just 1/sqrt(rsq) */
-             /* may be gmx_invsqrt is using table based gromacs approach which may be */
-             /* inefficient for autovectorization */
-             rinv0 = 1.0/sqrt(rsq0);
-             rinv1 = 1.0/sqrt(rsq1);
+                 rinv = 1.0/sqrt(rsq);
 
-             /* Partially enforce the cut-off (and perhaps
-              * exclusions) to avoid possible overflow of
-              * rinvsix when computing LJ, and/or overflowing
-              * the Coulomb table during lookup. */
-             rinv0 = rinv0 * skipmask0;
-             rinv1 = rinv1 * skipmask1;
+                 rinv = rinv * skipmask;
 
-             rinvsq0  = rinv0*rinv0;
-             rinvsq1  = rinv1*rinv1;
+                 rinvsq  = rinv*rinv;
 
-             rinvsix0 = interact0*rinvsq0*rinvsq0*rinvsq0;
-             FrLJ60   = c60*rinvsix0;
-             FrLJ120  = c120*rinvsix0*rinvsix0;
-             frLJ0    = FrLJ120 - FrLJ60;
-             VLJ0     = (FrLJ120 + c120*repulsion_shift_cpot_)/12 -
-                 (FrLJ60 + c60*dispersion_shift_cpot_)/6;
+                 rinvsix = interact*rinvsq*rinvsq*rinvsq;
+                 FrLJ6   = c6*rinvsix;
+                 FrLJ12  = c12*rinvsix*rinvsix;
+                 frLJ    = FrLJ12 - FrLJ6;
+                 VLJ     = (FrLJ12 + c12*repulsion_shift_cpot_)/12 -
+                     (FrLJ6 + c6*dispersion_shift_cpot_)/6;
 
-             rinvsix1 = interact1*rinvsq1*rinvsq1*rinvsq1;
-             FrLJ61   = c61*rinvsix1;
-             FrLJ121  = c121*rinvsix1*rinvsix1;
-             frLJ1    = FrLJ121 - FrLJ61;
-             VLJ1     = (FrLJ121 + c121*repulsion_shift_cpot_)/12 -
-                 (FrLJ61 + c61*dispersion_shift_cpot_)/6;
+                 /* Need to zero the interaction if there should be exclusion. */
+                 VLJ     = VLJ * interact;
+                 /* Need to zero the interaction if r >= rcut */
+                 VLJ     = VLJ * skipmask;
 
-             /* Need to zero the interaction if there should be exclusion. */
-             VLJ0     = VLJ0 * interact0;
-             VLJ1     = VLJ1 * interact1;
-             /* Need to zero the interaction if r >= rcut */
-             VLJ0     = VLJ0 * skipmask0;
-             VLJ1     = VLJ1 * skipmask1;
+                 V.vdw +=  VLJ;
 
-             /* Vvdw_ci += VLJ0 + VLJ1; */
-             V.vdw += VLJ0 + VLJ1;
 #ifdef CALC_COULOMB
-
-             qq0     = skipmask0 * qi(0) * qj(k);
-             rs0     = rsq0*rinv0*tabq_scale_;
-             ri0     = (int)rs0;
-             frac0   = rs0 - ri0;
-             fexcl0  = (1 - frac0)*Ftab_(ri0) + frac0*Ftab_(ri0+1);
-             fcoul0  = qq0*rinv0 * (interact0*rinvsq0 - fexcl0);
-             vcoul0  = qq0*(interact0*(rinv0 - sh_ewald_)
-                            -(Vtab_(ri0) - halfsp*frac0*(Ftab_(ri0) + fexcl0)));
-
-             qq1     = skipmask1 * qi(1) * qj(k);
-             rs1     = rsq1*rinv1*tabq_scale_;
-             ri1     = (int)rs1;
-             frac1   = rs1 - ri1;
-             fexcl1  = (1 - frac1)*Ftab_(ri1) + frac1*Ftab_(ri1+1);
-             fcoul1  = qq1*rinv1 * (interact1*rinvsq1 - fexcl1);
-             vcoul1  = qq1*(interact1*(rinv1 - sh_ewald_)
-                            -(Vtab_(ri1) - halfsp*frac1*(Ftab_(ri1) + fexcl1)));
-
-             /* Vc_ci += vcoul0 + vcoul1; */
-             V.vc += vcoul0 + vcoul1;
+                 qq     = skipmask * q * qj(k);
+                 rs     = rsq*rinv*tabq_scale_;
+                 ri     = (int)rs;
+                 frac   = rs - ri;
+                 fexcl  = (1 - frac)*Ftab_(ri) + frac*Ftab_(ri+1);
+                 fcoul  = qq*rinv * (interact*rinvsq - fexcl);
+                 vcoul  = qq*(interact*(rinv - sh_ewald_)
+                                -(Vtab_(ri) - halfsp*frac*(Ftab_(ri) + fexcl)));
+                 V.vc += vcoul;
 #endif
 
 #ifdef CALC_COULOMB
-             fscal0 = frLJ0*rinvsq0 + fcoul0;
-             fscal1 = frLJ1*rinvsq1 + fcoul1;
+                 fscal = frLJ*rinvsq + fcoul;
 #else
-             fscal0 = frLJ0*rinvsq0;
-             fscal1 = frLJ1*rinvsq1;
+                 fscal = frLJ*rinvsq;
 #endif
-             fx0 = fscal0*dx0;
-             fy0 = fscal0*dy0;
-             fz0 = fscal0*dz0;
+                 fx = fscal*dx;
+                 fy = fscal*dy;
+                 fz = fscal*dz;
 
-             fx1 = fscal1*dx1;
-             fy1 = fscal1*dy1;
-             fz1 = fscal1*dz1;
+                 V.fi[XX] += fx;
+                 V.fi[YY] += fy;
+                 V.fi[ZZ] += fz;
 
-             fi(0,XX) += fx0;
-             fi(0,YY) += fy0;
-             fi(0,ZZ) += fz0;
+                 fj(k,XX) += fx;
+                 fj(k,YY) += fy;
+                 fj(k,ZZ) += fz;
 
-             fi(1,XX) += fx1;
-             fi(1,YY) += fy1;
-             fi(1,ZZ) += fz1;
+             }, V_sum);
 
-             fj(k,XX) += fx0 + fx1;
-             fj(k,YY) += fy0 + fy1;
-             fj(k,ZZ) += fz0 + fz1;
+        Vvdw_ci += V_sum.vdw;
+        Vc_ci   += V_sum.vc;
 
-         }, V_sum1);
+        fi(i,XX) += V_sum.fi[XX];
+        fi(i,YY) += V_sum.fi[YY];
+        fi(i,ZZ) += V_sum.fi[ZZ];
+    }
 
-    struct v_energy V_sum2;
-    Kokkos::parallel_reduce
-        (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k, struct v_energy& V)
-         {
-             int ai0         = ci*UNROLLI + 2;
-             int ai1         = ai0 + 1;
-             int type_i_off0 = type_(ai0)*ntype2;
-             int type_i_off1 = type_(ai1)*ntype2;
+    for (int i = 2; i < 4; i++)
+    {
+        int type_i_off  = typei(i);
+        real q          = qi(i);
 
-             int aj         = cj*UNROLLJ + k;
-             int type_j_off = type_(aj)*2;
+        struct v_energy V_sum;
+        Kokkos::parallel_reduce
+            (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k,struct v_energy& V)
+             {
+                 int type_j_off = typej(k);
 
-             real c60       = nbfp_(type_i_off0 + type_j_off);
-             real c120      = nbfp_(type_i_off0 + type_j_off + 1);
-             real c61       = nbfp_(type_i_off1 + type_j_off);
-             real c121      = nbfp_(type_i_off1 + type_j_off + 1);
-
-             real dx0, dy0, dz0;
-             real rsq0, rinv0;
-             real rinvsq0, rinvsix0;
-             real FrLJ60 = 0, FrLJ120 = 0, frLJ0 = 0, VLJ0 = 0;
-
-             real dx1, dy1, dz1;
-             real rsq1, rinv1;
-             real rinvsq1, rinvsix1;
-             real FrLJ61 = 0, FrLJ121 = 0, frLJ1 = 0, VLJ1 = 0;
+                 // reading lj parameter causes indirect access
+#ifndef HALF_LJ
+                 real c6       = nbfp_(type_i_off + type_j_off);
+                 real c12      = nbfp_(type_i_off + type_j_off + 1);
+#endif
+                 real dx, dy, dz;
+                 real rsq, rinv;
+                 real rinvsq, rinvsix;
+                 real FrLJ6 = 0, FrLJ12 = 0, frLJ = 0, VLJ = 0;
 
 #ifdef CALC_COULOMB
-             real qq0;
-             real fcoul0;
-             real rs0, frac0;
-             int  ri0;
-             real fexcl0;
-             real vcoul0;
-
-             real qq1;
-             real fcoul1;
-             real rs1, frac1;
-             int  ri1;
-             real fexcl1;
-             real vcoul1;
+                 real qq;
+                 real fcoul;
+                 real rs, frac;
+                 int  ri;
+                 real fexcl;
+                 real vcoul;
 #endif
-             real fscal0 = 0.0;
-             real fx0, fy0, fz0;
+                 real fscal = 0.0;
+                 real fx, fy, fz;
 
-             real fscal1 = 0.0;
-             real fx1, fy1, fz1;
-
-             /* A multiply mask used to zero an interaction
-              * when either the distance cutoff is exceeded, or
-              * (if appropriate) the i and j indices are
-              * unsuitable for this kind of inner loop. */
-             real skipmask0;
-             real skipmask1;
+                 real skipmask;
 
 #ifdef CHECK_EXCLS
-             /* A multiply mask used to zero an interaction
-              * when that interaction should be excluded
-              * (e.g. because of bonding). */
-             int interact0;
-             int interact1;
+                 /* A multiply mask used to zero an interaction
+                  * when that interaction should be excluded
+                  * (e.g. because of bonding). */
+                 int interact;
 
-             interact0 = ((excl>>(2*UNROLLI + k)) & 1);
-             interact1 = ((excl>>(3*UNROLLI + k)) & 1);
+                 interact = ((excl>>(i*UNROLLI + k)) & 1);
 
 #ifndef EXCL_FORCES
-             skipmask0 = interact0;
-             skipmask1 = interact1;
+                 skipmask = interact;
 #else
-             skipmask0 = !(cj == ci_sh && k <= 2);
-             skipmask1 = !(cj == ci_sh && k <= 3);
+                 skipmask = !(cj == ci_sh && k <= i);
 #endif
 #else
-#define interact0 1.0
-#define interact1 1.0
-             skipmask0 = 1.0;
-             skipmask1 = 1.0;
+#define interact 1.0
+                 skipmask = 1.0;
 #endif
-             dx0  = xi(2,XX) - xj(k,XX);
-             dy0  = xi(2,YY) - xj(k,YY);
-             dz0  = xi(2,ZZ) - xj(k,ZZ);
+                 dx  = xi(i,XX) - xj(k,XX);
+                 dy  = xi(i,YY) - xj(k,YY);
+                 dz  = xi(i,ZZ) - xj(k,ZZ);
 
-             dx1  = xi(3,XX) - xj(k,XX);
-             dy1  = xi(3,YY) - xj(k,YY);
-             dz1  = xi(3,ZZ) - xj(k,ZZ);
+                 rsq = dx*dx + dy*dy + dz*dz;
 
-             rsq0 = dx0*dx0 + dy0*dy0 + dz0*dz0;
-             rsq1 = dx1*dx1 + dy1*dy1 + dz1*dz1;
-
-             /* Prepare to enforce the cut-off. */
-             skipmask0 = (rsq0 >= rcut2) ? 0 : skipmask0;
-             skipmask1 = (rsq1 >= rcut2) ? 0 : skipmask1;
+                 // prevents vectorization (complains loop with early exit)
+                 /* /\* Prepare to enforce the cut-off. *\/ */
+                 skipmask = (rsq >= rcut2) ? 0 : skipmask;
 
 #ifdef CHECK_EXCLS
-             /* Excluded atoms are allowed to be on top of each other.
-              * To avoid overflow of rinv, rinvsq and rinvsix
-              * we add a small number to rsq for excluded pairs only.
-              */
-             rsq0 += (1 - interact0)*NBNXN_AVOID_SING_R2_INC;
-             rsq1 += (1 - interact1)*NBNXN_AVOID_SING_R2_INC;
+                 /* Excluded atoms are allowed to be on top of each other.
+                  * To avoid overflow of rinv, rinvsq and rinvsix
+                  * we add a small number to rsq for excluded pairs only.
+                  */
+                 rsq += (1 - interact)*NBNXN_AVOID_SING_R2_INC;
 #endif
-             
-             /* sqrt() function can be used in autovectorized loop */
-             /* gmx_invsqrt() found to be slower than just 1/sqrt(rsq) */
-             /* may be gmx_invsqrt is using table based gromacs approach which may be */
-             /* inefficient for autovectorization */
-             rinv0 = 1.0/sqrt(rsq0);
-             rinv1 = 1.0/sqrt(rsq1);
+                 rinv = 1.0/sqrt(rsq);
 
-             /* Partially enforce the cut-off (and perhaps
-              * exclusions) to avoid possible overflow of
-              * rinvsix when computing LJ, and/or overflowing
-              * the Coulomb table during lookup. */
-             rinv0 = rinv0 * skipmask0;
-             rinv1 = rinv1 * skipmask1;
+                 rinv = rinv * skipmask;
 
-             rinvsq0  = rinv0*rinv0;
-             rinvsq1  = rinv1*rinv1;
+                 rinvsq  = rinv*rinv;
 
 #ifndef HALF_LJ
-             rinvsix0 = interact0*rinvsq0*rinvsq0*rinvsq0;
-             FrLJ60   = c60*rinvsix0;
-             FrLJ120  = c120*rinvsix0*rinvsix0;
-             frLJ0    = FrLJ120 - FrLJ60;
-             VLJ0     = (FrLJ120 + c120*repulsion_shift_cpot_)/12 -
-                 (FrLJ60 + c60*dispersion_shift_cpot_)/6;
+                 rinvsix = interact*rinvsq*rinvsq*rinvsq;
+                 FrLJ6   = c6*rinvsix;
+                 FrLJ12  = c12*rinvsix*rinvsix;
+                 frLJ    = FrLJ12 - FrLJ6;
+                 VLJ     = (FrLJ12 + c12*repulsion_shift_cpot_)/12 -
+                     (FrLJ6 + c6*dispersion_shift_cpot_)/6;
 
-             rinvsix1 = interact1*rinvsq1*rinvsq1*rinvsq1;
-             FrLJ61   = c61*rinvsix1;
-             FrLJ121  = c121*rinvsix1*rinvsix1;
-             frLJ1    = FrLJ121 - FrLJ61;
-             VLJ1     = (FrLJ121 + c121*repulsion_shift_cpot_)/12 -
-                 (FrLJ61 + c61*dispersion_shift_cpot_)/6;
+                 /* Need to zero the interaction if there should be exclusion. */
+                 VLJ     = VLJ * interact;
+                 /* Need to zero the interaction if r >= rcut */
+                 VLJ     = VLJ * skipmask;
 
-             /* Need to zero the interaction if there should be exclusion. */
-             VLJ0     = VLJ0 * interact0;
-             VLJ1     = VLJ1 * interact1;
-             /* Need to zero the interaction if r >= rcut */
-             VLJ0     = VLJ0 * skipmask0;
-             VLJ1     = VLJ1 * skipmask1;
-             /* 1 more flop for LJ energy */
-
-             /* Vvdw_ci += VLJ0 + VLJ1; */
-             V.vdw += VLJ0 + VLJ1;
+                 V.vdw +=  VLJ;
 #endif
 
 #ifdef CALC_COULOMB
+                 qq     = skipmask * q * qj(k);
+                 rs     = rsq*rinv*tabq_scale_;
+                 ri     = (int)rs;
+                 frac   = rs - ri;
+                 fexcl  = (1 - frac)*Ftab_(ri) + frac*Ftab_(ri+1);
+                 fcoul  = qq*rinv * (interact*rinvsq - fexcl);
+                 vcoul  = qq*(interact*(rinv - sh_ewald_)
+                                -(Vtab_(ri) - halfsp*frac*(Ftab_(ri) + fexcl)));
 
-             qq0     = skipmask0 * qi(2) * qj(k);
-             rs0     = rsq0*rinv0*tabq_scale_;
-             ri0     = (int)rs0;
-             frac0   = rs0 - ri0;
-             fexcl0  = (1 - frac0)*Ftab_(ri0) + frac0*Ftab_(ri0+1);
-             fcoul0  = qq0*rinv0 * (interact0*rinvsq0 - fexcl0);
-             vcoul0  = qq0*(interact0*(rinv0 - sh_ewald_)
-                            -(Vtab_(ri0) - halfsp*frac0*(Ftab_(ri0) + fexcl0)));
-
-             qq1     = skipmask1 * qi(3) * qj(k);
-             rs1     = rsq1*rinv1*tabq_scale_;
-             ri1     = (int)rs1;
-             frac1   = rs1 - ri1;
-             fexcl1  = (1 - frac1)*Ftab_(ri1) + frac1*Ftab_(ri1+1);
-             fcoul1  = qq1*rinv1 * (interact1*rinvsq1 - fexcl1);
-             vcoul1  = qq1*(interact1*(rinv1 - sh_ewald_)
-                            -(Vtab_(ri1) - halfsp*frac1*(Ftab_(ri1) + fexcl1)));
-
-             /* Vc_ci += vcoul0 + vcoul1; */
-             V.vc += vcoul0 + vcoul1;
+                 V.vc += vcoul;
 #endif
 
 #ifndef HALF_LJ
-             fscal0 = frLJ0*rinvsq0;
-             fscal1 = frLJ1*rinvsq1;
+                 fscal = frLJ*rinvsq;
 #endif
 
 #ifdef CALC_COULOMB
-             fscal0 += fcoul0;
-             fscal1 += fcoul1;
+                 fscal += fcoul;
 #endif
-             fx0 = fscal0*dx0;
-             fy0 = fscal0*dy0;
-             fz0 = fscal0*dz0;
+                 fx = fscal*dx;
+                 fy = fscal*dy;
+                 fz = fscal*dz;
 
-             fx1 = fscal1*dx1;
-             fy1 = fscal1*dy1;
-             fz1 = fscal1*dz1;
+                 V.fi[XX] += fx;
+                 V.fi[YY] += fy;
+                 V.fi[ZZ] += fz;
 
-             fi(2,XX) += fx0;
-             fi(2,YY) += fy0;
-             fi(2,ZZ) += fz0;
+                 fj(k,XX) += fx;
+                 fj(k,YY) += fy;
+                 fj(k,ZZ) += fz;
 
-             fi(3,XX) += fx1;
-             fi(3,YY) += fy1;
-             fi(3,ZZ) += fz1;
+             }, V_sum);
 
-             fj(k,XX) += fx0 + fx1;
-             fj(k,YY) += fy0 + fy1;
-             fj(k,ZZ) += fz0 + fz1;
+        Vvdw_ci += V_sum.vdw;
+        Vc_ci   += V_sum.vc;
 
-         }, V_sum2);
+        fi(i,XX) += V_sum.fi[XX];
+        fi(i,YY) += V_sum.fi[YY];
+        fi(i,ZZ) += V_sum.fi[ZZ];
 
-    Vvdw_ci += V_sum1.vdw + V_sum2.vdw;
-    Vc_ci   += V_sum1.vc + V_sum2.vc;
+    }
 
     Kokkos::parallel_for
         (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k)
@@ -432,8 +300,8 @@
              f_view(ajk, ZZ) -= fj(k,ZZ);
          });
 
+
 }
 
-#undef interact0
-#undef interact1
+#undef interact
 #undef EXCL_FORCES

@@ -90,10 +90,12 @@ struct nbnxn_kokkos_kernel_functor
     typedef Kokkos::View<real[UNROLLI][3],shared_space,Kokkos::MemoryUnmanaged> shared_xi;
     typedef Kokkos::View<real[UNROLLI][3],shared_space,Kokkos::MemoryUnmanaged> shared_fi;
     typedef Kokkos::View<real[UNROLLI],shared_space,Kokkos::MemoryUnmanaged> shared_qi;
+    typedef Kokkos::View<int[UNROLLI],shared_space,Kokkos::MemoryUnmanaged> shared_typei;
 
     typedef Kokkos::View<real[UNROLLJ][3],shared_space,Kokkos::MemoryUnmanaged> shared_xj;
     typedef Kokkos::View<real[UNROLLJ][3],shared_space,Kokkos::MemoryUnmanaged> shared_fj;
     typedef Kokkos::View<real[UNROLLJ],shared_space,Kokkos::MemoryUnmanaged> shared_qj;
+    typedef Kokkos::View<int[UNROLLJ],shared_space,Kokkos::MemoryUnmanaged> shared_typej;
 
     // list of structures needed for non-bonded interactions
     DAT::t_un_real_1d3 x_;
@@ -125,14 +127,27 @@ struct nbnxn_kokkos_kernel_functor
 
     struct v_energy
     {
-        real vdw = 0.0;
-        real vc  = 0.0;
-
+        real vdw;
+        real vc;
+        real fi[3];
+        v_energy()
+        {
+            vdw = 0.0;
+            vc = 0.0;
+            for (int i = 0; i < 3; i++)
+            {
+                fi[i] = 0.0;
+            }
+        }
         KOKKOS_INLINE_FUNCTION
-        void operator+=(const struct v_energy &rhs)
+        void operator+=(const volatile struct v_energy &rhs)
         {
             vdw += rhs.vdw;
-            vc   += rhs.vc;
+            vc  += rhs.vc;
+            for (int i = 0; i < 3; i++)
+            {
+                fi[i] += rhs.fi[i];
+            }
         }
     };
 
@@ -188,12 +203,10 @@ struct nbnxn_kokkos_kernel_functor
     {
         const int I = dev.league_rank() * dev.team_size() + dev.team_rank();
 
-        real                facel;
         int                 n, ci, ci_sh;
         int                 ish, ishf;
         gmx_bool            do_LJ, half_LJ, do_coul, do_self;
         int                 cjind0, cjind1, cjind;
-        int                 ip, jp;
         real                Vvdw_ci, Vc_ci;
         const real          tabscale = tabq_scale_;
         const real          halfsp = 0.5/tabscale;
@@ -204,10 +217,12 @@ struct nbnxn_kokkos_kernel_functor
         shared_xi xi(dev.team_shmem());
         shared_fi fi(dev.team_shmem());
         shared_qi qi(dev.team_shmem());
+        shared_typei typei(dev.team_shmem());
 
         shared_xj xj(dev.team_shmem());
         shared_fj fj(dev.team_shmem());
         shared_qj qj(dev.team_shmem());
+        shared_typej typej(dev.team_shmem());
 
         DAT::t_un_real_1d3 f_view = f_[I];
 
@@ -220,8 +235,6 @@ struct nbnxn_kokkos_kernel_functor
 
         for (n = 0; n < nci_(I); n++)
         {
-            int i, d;
-
             ish              = (ci_[I](n).shift & NBNXN_CI_SHIFT);
             /* x, f and fshift are assumed to be stored with stride 3 */
             ishf             = ish*DIM;
@@ -245,22 +258,35 @@ struct nbnxn_kokkos_kernel_functor
             Vvdw_ci = 0;
             Vc_ci   = 0;
 
+            real shiftvec[3] = {shiftvec_(ishf + XX),
+                                shiftvec_(ishf + YY),
+                                shiftvec_(ishf + ZZ)};
+
+            const int cii = ci * UNROLLI;
             // load cluster i coordinates into shared memory
             Kokkos::parallel_for
                 (Kokkos::ThreadVectorRange(dev,UNROLLI), KOKKOS_LAMBDA (const int& k)
                  {
-                     int aik = ci * UNROLLI + k;
+                     int aik = cii + k;
 
-                     xi(k,XX) = x_(aik,XX) + shiftvec_(ishf + XX);
-                     xi(k,YY) = x_(aik,YY) + shiftvec_(ishf + YY);
-                     xi(k,ZZ) = x_(aik,ZZ) + shiftvec_(ishf + ZZ);
+                     xi(k,XX) = x_(aik,XX) + shiftvec[XX];
+                     xi(k,YY) = x_(aik,YY) + shiftvec[YY];
+                     xi(k,ZZ) = x_(aik,ZZ) + shiftvec[ZZ];
 
                      qi(k) =  q_(aik);
 
                      fi(k,XX) = 0.0;
                      fi(k,YY) = 0.0;
                      fi(k,ZZ) = 0.0;
-            
+                 });
+
+            // load cluster i coordinates into shared memory
+            // DOES NOT VECTORIZE
+            Kokkos::parallel_for
+                (Kokkos::ThreadVectorRange(dev,UNROLLI), KOKKOS_LAMBDA (const int& k)
+                 {
+                     int aik = cii + k;
+                     typei(k) = type_(aik) * ntype2;
                  });
 
             if (do_self)
@@ -360,7 +386,8 @@ struct nbnxn_kokkos_kernel_functor
     size_t team_shmem_size (int team_size) const {
         return sizeof(real ) * (UNROLLI * XI_STRIDE + UNROLLJ * XJ_STRIDE + // xi + xj size
                                 UNROLLI * FI_STRIDE + UNROLLJ * FJ_STRIDE + // fi + fj size
-                                UNROLLI + UNROLLJ // qi + qj size
+                                UNROLLI + UNROLLJ + // qi + qj size
+                                UNROLLI + UNROLLJ //typei and typej size
                                 );
     }
 
