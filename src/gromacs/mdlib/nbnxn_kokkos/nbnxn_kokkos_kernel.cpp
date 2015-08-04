@@ -87,15 +87,16 @@ struct nbnxn_kokkos_kernel_functor
     typedef GMXDeviceType device_type;
     typedef GMXDeviceType::execution_space::scratch_memory_space shared_space;
 
-    typedef Kokkos::View<real[UNROLLI][3],shared_space,Kokkos::MemoryUnmanaged> shared_xi;
-    typedef Kokkos::View<real[UNROLLI][3],shared_space,Kokkos::MemoryUnmanaged> shared_fi;
+    typedef Kokkos::View<real[UNROLLI][3],Kokkos::LayoutLeft,shared_space,Kokkos::MemoryUnmanaged> shared_xi;
+    typedef Kokkos::View<real[UNROLLI][3],Kokkos::LayoutLeft,shared_space,Kokkos::MemoryUnmanaged> shared_fi;
     typedef Kokkos::View<real[UNROLLI],shared_space,Kokkos::MemoryUnmanaged> shared_qi;
     typedef Kokkos::View<int[UNROLLI],shared_space,Kokkos::MemoryUnmanaged> shared_typei;
 
-    typedef Kokkos::View<real[UNROLLJ][3],shared_space,Kokkos::MemoryUnmanaged> shared_xj;
-    typedef Kokkos::View<real[UNROLLJ][3],shared_space,Kokkos::MemoryUnmanaged> shared_fj;
+    typedef Kokkos::View<real[UNROLLJ][3],Kokkos::LayoutLeft,shared_space,Kokkos::MemoryUnmanaged> shared_xj;
+    typedef Kokkos::View<real[UNROLLJ][3],Kokkos::LayoutLeft,shared_space,Kokkos::MemoryUnmanaged> shared_fj;
     typedef Kokkos::View<real[UNROLLJ],shared_space,Kokkos::MemoryUnmanaged> shared_qj;
     typedef Kokkos::View<int[UNROLLJ],shared_space,Kokkos::MemoryUnmanaged> shared_typej;
+    typedef Kokkos::View<real[UNROLLJ],shared_space,Kokkos::MemoryUnmanaged> shared_rsq;
 
     // list of structures needed for non-bonded interactions
     DAT::t_un_real_1d3 x_;
@@ -223,6 +224,11 @@ struct nbnxn_kokkos_kernel_functor
         shared_fj fj(dev.team_shmem());
         shared_qj qj(dev.team_shmem());
         shared_typej typej(dev.team_shmem());
+
+        shared_xj dx(dev.team_shmem());
+        shared_rsq rsq(dev.team_shmem());
+        shared_rsq skipmask(dev.team_shmem());
+        shared_rsq rinv(dev.team_shmem());
 
         DAT::t_un_real_1d3 f_view = f_[I];
 
@@ -387,7 +393,9 @@ struct nbnxn_kokkos_kernel_functor
         return sizeof(real ) * (UNROLLI * XI_STRIDE + UNROLLJ * XJ_STRIDE + // xi + xj size
                                 UNROLLI * FI_STRIDE + UNROLLJ * FJ_STRIDE + // fi + fj size
                                 UNROLLI + UNROLLJ + // qi + qj size
-                                UNROLLI + UNROLLJ //typei and typej size
+                                UNROLLI + UNROLLJ + //typei and typej size
+                                UNROLLJ * XJ_STRIDE + // dx
+                                UNROLLJ + UNROLLJ + UNROLLJ// rsq + skipmask + rinv
                                 );
     }
 
