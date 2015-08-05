@@ -40,15 +40,17 @@
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
-                 dx(k,ZZ)  = xi(i,ZZ) - xj(k,ZZ);
-                 dx(k,YY)  = xi(i,YY) - xj(k,YY);
                  dx(k,XX)  = xi(i,XX) - xj(k,XX);
+                 dx(k,YY)  = xi(i,YY) - xj(k,YY);
+                 dx(k,ZZ)  = xi(i,ZZ) - xj(k,ZZ);
              }//);
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  rsq(k)  = dx(k,XX)*dx(k,XX) + dx(k,YY)*dx(k,YY) + dx(k,ZZ)*dx(k,ZZ);
@@ -61,6 +63,7 @@
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  interact[k] = ((excl>>(i*UNROLLI + k)) & 1);
@@ -79,6 +82,7 @@
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  skipmask[k] = !(cj == ci_sh && k <= i);
@@ -90,6 +94,7 @@
         // DOESN'T Vectorize due to if condition
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  skipmask[k] = (rsq[k] >= rcut2) ? 0 : skipmask[k];
@@ -99,6 +104,7 @@
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  rsq(k)  += (1 - interact[k])*NBNXN_AVOID_SING_R2_INC;
@@ -119,6 +125,7 @@
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  rinvsq[k] = rinv(k)*rinv(k);
@@ -126,6 +133,7 @@
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  rinvsix[k] = interact[k]*rinvsq[k]*rinvsq[k]*rinvsq[k];
@@ -135,6 +143,7 @@
         real c12[UNROLLJ];
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  c6[k]  = nbfp_(type_i_off + typej(k));
@@ -145,6 +154,7 @@
         real FrLJ6[UNROLLJ];
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  FrLJ6[k]   = c6[k]*rinvsix[k];
@@ -155,6 +165,7 @@
         real VLJ[UNROLLJ];
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  frLJ[k]    = FrLJ12[k] - FrLJ6[k];
@@ -167,6 +178,7 @@
         real rs[UNROLLJ];
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  qq[k] = q * qj(k);
@@ -176,6 +188,7 @@
         int ri[UNROLLJ];
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  ri[k] = (int)rs[k];
@@ -192,6 +205,7 @@
         real fexcl[UNROLLJ];
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), [&] (int& k) */
+#pragma simd
         for(int k = 0; k < UNROLLJ; k++)
              {
                  fexcl[k] = (1 - frac[k])*Ftab_(ri[k]) + frac[k]*Ftab_(ri[k]+1);
@@ -233,16 +247,22 @@
 
         /* Kokkos::parallel_for */
         /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k) */
+
         for(int k = 0; k < UNROLLJ; k++)
              {
                  fi(i,XX) += fscal[k]*dx(k,XX);
                  fi(i,YY) += fscal[k]*dx(k,YY);
                  fi(i,ZZ) += fscal[k]*dx(k,ZZ);
+             }//);
 
+#pragma simd
+        for(int k = 0; k < UNROLLJ; k++)
+             {
                  fj(k,XX) -= fscal[k]*dx(k,XX);
                  fj(k,YY) -= fscal[k]*dx(k,YY);
                  fj(k,ZZ) -= fscal[k]*dx(k,ZZ);
              }//);
+
 
         real vvdw = 0.0;
         Kokkos::parallel_reduce
@@ -267,6 +287,7 @@
 
     /* Kokkos::parallel_for */
     /*     (Kokkos::ThreadVectorRange(dev,UNROLLJ), KOKKOS_LAMBDA (int& k) */
+#pragma simd
     for(int k = 0; k < UNROLLJ; k++)
          {
              int ajk = cj * UNROLLJ + k;
