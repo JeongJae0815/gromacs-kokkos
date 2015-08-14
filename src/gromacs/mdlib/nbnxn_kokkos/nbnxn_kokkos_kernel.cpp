@@ -105,7 +105,6 @@ struct nbnxn_kokkos_kernel_functor
     DAT::t_un_real_1d nbfp_;
     DAT::t_un_ci_1d* ci_;
     DAT::t_un_cj_1d* cj_;
-    // make this atomic when vectorizing because more than one thread may write into same location
     DAT::t_un_real_1d3* f_;
     DAT::t_un_real_1d* Vvdw_;
     DAT::t_un_real_1d* Vc_;
