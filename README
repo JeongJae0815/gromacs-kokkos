@@ -1,5 +1,12 @@
 
-               Welcome to the official version of GROMACS!
+               Welcome to the Kokkos version of GROMACS!
+               
+This version differs from the official version only by a minimal amount of code.
+LANL has added a non-bonded kernel written in the kokkos framework.
+
+
+
+Readme of the offical GROMACS version
 
 If you are familiar with Unix, it should be fairly trivial to compile and
 install GROMACS. GROMACS uses only the CMake build sytem, and our
